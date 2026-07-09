@@ -117,3 +117,9 @@ app.*.symbols
 !**/ios/**/default.perspectivev3
 !/packages/flutter_tools/test/data/dart_dependencies_test/**/.packages
 !/dev/ci/**/Gemfile.lock
+# Flutter mobile app files that should be versioned
+!mobile/pubspec.lock
+!mobile/android/gradlew
+!mobile/android/gradlew.bat
+!mobile/android/gradle/wrapper/gradle-wrapper.jar
+!mobile/android/gradle/wrapper/gradle-wrapper.properties
