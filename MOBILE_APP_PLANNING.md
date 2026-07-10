@@ -1,10 +1,10 @@
-﻿# Kirenz Mobile App Planning, Architecture, and Design
+# Kirenz Mobile App Planning, Architecture, and Design
 
 ## 1. Purpose
 
 This document defines the current plan for adding a Flutter + Dart mobile app to the Kirenz Platform.
 
-The mobile app should reuse the existing microservice platform and API Gateway instead of introducing a separate mobile backend. The current web application already covers the main product surface: authentication, Google login, OTP verification, feed, explore, posts, comments, reactions, profiles, cover photos, friends, blocking, privacy, realtime chat, group chat management, media/file sharing, and in-app notifications.
+The mobile app should reuse the existing microservice platform and API Gateway instead of introducing a separate mobile backend or separate mobile-owned database. The current web application already covers the main product surface: authentication, Google login, OTP verification, feed, explore, posts, comments, reactions, profiles, cover photos, friends, blocking, privacy, realtime chat, group chat management, media/file sharing, and in-app notifications.
 
 Success means the mobile app reaches practical feature parity with the current web product while demonstrating Flutter/Dart mobile development fundamentals:
 
@@ -12,16 +12,16 @@ Success means the mobile app reaches practical feature parity with the current w
 - Dart async programming with `Future`, `Stream`, `async`, and `await`.
 - REST API integration through the API Gateway.
 - JWT session handling with refresh tokens.
-- Secure token storage and lightweight local cache.
+- Secure token storage and lightweight device-local cache.
 - Realtime WebSocket/STOMP chat and notification subscriptions.
 - Local notifications and a future push notification path.
 
 ## 2. Current Platform Baseline
 
-The mobile app must call the API Gateway only.
+The mobile app must call the API Gateway only. It must not connect directly to PostgreSQL, MongoDB, Redis, Eureka, Kafka, or individual backend service ports.
 
 ```text
-Flutter app -> API Gateway -> backend services
+Flutter app -> API Gateway -> backend services -> owned databases
 ```
 
 Current backend services:
@@ -36,6 +36,22 @@ Current backend services:
 | Notification Service | In-app social notifications and realtime notification delivery. |
 | Discovery Service | Internal service discovery only. Mobile does not call it directly. |
 
+Current backend database ownership:
+
+| Service | Source-of-truth database | Mobile data access rule |
+| --- | --- | --- |
+| Identity Service | PostgreSQL `identity_db` | Mobile reads/writes identity and profile data through Gateway auth/user endpoints only. |
+| User Service | PostgreSQL `user_db` | Mobile reads/writes friends, privacy, and blocks through Gateway user endpoints only. |
+| Social Service | MongoDB `kirenz_social` | Mobile reads/writes posts, comments, reactions, and post media through Gateway social endpoints only. |
+| Chat Service | MongoDB `kirenz_chat`; Redis for presence/typing | Mobile reads/writes conversations/messages through Gateway REST and `/ws/chat` only. |
+| Notification Service | PostgreSQL `notification_db` | Mobile reads/writes notification state through Gateway notification endpoints and `/ws/notifications` only. |
+
+Data sync principle:
+
+- Web and mobile stay in sync because both clients use the same Gateway routes and the same backend services.
+- PostgreSQL and MongoDB remain backend-owned sources of truth.
+- The Flutter app may keep only a device-local cache for performance/offline display. That cache is not a separate source of truth and must be reconciled from backend API/WebSocket responses.
+
 Current integration conventions:
 
 | Concern | Current contract |
@@ -47,6 +63,7 @@ Current integration conventions:
 | Google login | Client gets Google `id_token`, backend verifies it through `/api/auth/google`. |
 | API response | `ApiResponse<T>` with `success`, `message`, and `data`. |
 | Uploads | Multipart uploads for post media, chat media/files, avatar, and cover photo. |
+| Source of truth | Backend-owned PostgreSQL/MongoDB per service boundary; mobile uses Gateway APIs only. |
 
 ## 3. Current Product State To Mirror
 
@@ -113,7 +130,7 @@ mobile/
 |   |   |-- errors/
 |   |   |-- network/
 |   |   |-- storage/
-|   |   |-- database/
+|   |   |-- local_cache/
 |   |   |-- websocket/
 |   |   `-- notifications/
 |   |-- features/
@@ -164,7 +181,7 @@ feature_name/
 | Models | `freezed` + `json_serializable`. |
 | Secure storage | `flutter_secure_storage` for access/refresh tokens. |
 | Preferences | `shared_preferences` for theme, locale, onboarding, last tab. |
-| SQLite cache | Prefer `drift` for typed local cache. |
+| Device-local cache | Prefer `drift` for typed SQLite cache used only for offline reads and UI performance. |
 | WebSocket/STOMP | Mobile-compatible STOMP client. |
 | Media picking | `image_picker` or platform media picker. |
 | Image cache | `cached_network_image`. |
@@ -393,7 +410,15 @@ Store:
 - Last selected tab.
 - Last successful API environment for debug builds.
 
-### SQLite Cache
+### Device-Local SQLite Cache
+
+The mobile cache is not a backend database and must not replace PostgreSQL or MongoDB. Backend data remains owned by the existing microservices:
+
+- PostgreSQL: identity, profile/account fields, friendships, privacy, blocks, notifications.
+- MongoDB: posts, comments, reactions, conversations, messages.
+- Redis: short-lived chat presence and typing state.
+
+The cache stores copies of selected API/WebSocket responses for fast rendering and limited offline display.
 
 | Table | Purpose |
 | --- | --- |
@@ -410,6 +435,7 @@ MVP offline behavior:
 - Show cached feed/profile/explore if available.
 - Disable network-only actions except local drafts.
 - Retry failed actions manually from UI.
+- Refresh cached data from the Gateway after reconnect so web and mobile converge on the same PostgreSQL/MongoDB-backed state.
 
 ## 13. UI/UX Direction
 
@@ -445,12 +471,13 @@ Core widgets:
 
 ### Phase 0 - Planning Baseline
 
-Status: current document updated to match current web/backend progress.
+Status: done. Current document updated to match current web/backend progress.
 
 Deliverables:
 
 - Current feature parity target documented.
 - API Gateway-only rule confirmed.
+- Backend PostgreSQL/MongoDB ownership confirmed; mobile uses these databases indirectly through existing services.
 - Realtime chat and notification behavior clarified.
 - Mobile architecture and stack selected.
 
@@ -508,7 +535,7 @@ Tasks:
 - Post detail.
 - Comments and replies.
 - Reactions for posts and comments.
-- SQLite cache for feed/explore/opened post details.
+- Device-local cache for feed/explore/opened post details.
 
 ### Phase 5 - Chat and Presence
 
@@ -523,7 +550,7 @@ Tasks:
 - Send text/image/video/PDF/DOCX.
 - STOMP connection and reconnect.
 - Conversation, typing, user queue, and presence subscriptions.
-- SQLite cache for conversations/messages.
+- Device-local cache for conversations/messages.
 
 ### Phase 6 - Notifications
 
@@ -584,9 +611,9 @@ This project should be implemented by two people with clear ownership boundaries
 Recommended parallel workflow:
 
 - Person A starts with user-facing screens and controller boundaries.
-- Person B starts with infrastructure, API clients, storage, realtime, and tests.
+- Person B starts with infrastructure, API clients, device-local cache, and realtime.
 - Shared models and route names must be agreed before each phase begins.
-- Each phase should end with `flutter analyze` and targeted tests passing.
+- Each phase should end with `flutter analyze`, a successful local run/build, and manual smoke checks. Automated tests are optional for now and should only be added when they remove real risk.
 - If both people touch the same feature, Person A owns `presentation` and Person B owns `data` plus `domain` unless agreed otherwise.
 - PRs should be phase-scoped and avoid mixing unrelated UI polish with API infrastructure.
 
@@ -618,6 +645,7 @@ Planning is successful when:
 
 - The mobile architecture is documented and approved.
 - Feature parity matches current web/backend progress.
+- Mobile data sync strategy uses the existing backend-owned PostgreSQL and MongoDB databases through API Gateway/microservices.
 - REST, WebSocket, storage, and notification designs are clear.
 - The team can start Phase 1 without re-deciding structure.
 

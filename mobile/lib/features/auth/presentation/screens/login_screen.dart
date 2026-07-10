@@ -25,6 +25,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final session = ref.watch(sessionControllerProvider);
+    final isBusy = session.status == SessionStatus.authenticating;
+
+    ref.listen(sessionControllerProvider, (previous, next) {
+      final message = next.errorMessage;
+      if (message != null && message.isNotEmpty) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(SnackBar(content: Text(message)));
+      }
+    });
+
     return Scaffold(
       appBar: AppBar(title: const Text('Login')),
       body: SafeArea(
@@ -42,9 +54,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             Form(
               key: _formKey,
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   TextFormField(
                     controller: _emailController,
+                    enabled: !isBusy,
                     keyboardType: TextInputType.emailAddress,
                     textInputAction: TextInputAction.next,
                     decoration: const InputDecoration(
@@ -62,8 +76,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: _passwordController,
+                    enabled: !isBusy,
                     obscureText: true,
                     textInputAction: TextInputAction.done,
+                    onFieldSubmitted: (_) => isBusy ? null : _submit(),
                     decoration: const InputDecoration(
                       labelText: 'Password',
                       prefixIcon: Icon(Icons.lock_outline),
@@ -78,19 +94,33 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   ),
                   const SizedBox(height: 24),
                   FilledButton(
-                    onPressed: _submit,
-                    child: const Text('Continue'),
+                    onPressed: isBusy ? null : _submit,
+                    child: isBusy
+                        ? const SizedBox.square(
+                            dimension: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text('Continue'),
                   ),
                   const SizedBox(height: 12),
                   OutlinedButton.icon(
-                    onPressed: () {},
+                    onPressed: null,
                     icon: const Icon(Icons.g_mobiledata),
                     label: const Text('Continue with Google'),
                   ),
                   const SizedBox(height: 12),
                   TextButton(
-                    onPressed: () => context.go('/register'),
+                    onPressed: isBusy ? null : () => context.go('/register'),
                     child: const Text('Create account'),
+                  ),
+                  const SizedBox(height: 8),
+                  TextButton(
+                    onPressed: isBusy
+                        ? null
+                        : () => ref
+                              .read(sessionControllerProvider.notifier)
+                              .signInForDevelopment(),
+                    child: const Text('Use development session'),
                   ),
                 ],
               ),
@@ -101,11 +131,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     );
   }
 
-  void _submit() {
+  Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) {
       return;
     }
 
-    ref.read(sessionControllerProvider.notifier).signInForDevelopment();
+    await ref
+        .read(sessionControllerProvider.notifier)
+        .login(
+          email: _emailController.text.trim(),
+          password: _passwordController.text,
+        );
   }
 }
