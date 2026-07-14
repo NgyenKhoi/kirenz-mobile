@@ -2,12 +2,38 @@
 
 ## Agent Workflow
 
-1. Read this `rule.md` and the files directly related to the task before changing code.
-2. Follow existing Flutter project patterns before introducing new abstractions.
-3. Keep changes scoped to the requested feature, phase, or bug.
-4. Do not revert or overwrite user changes unless explicitly requested.
-5. Prefer implementation plus verification over proposal-only answers when the request is actionable.
-6. Run the smallest relevant Flutter verification command after code changes and report the result.
+1. Read this `rule.md`, `TASK.md`, the current feature spec, and only its declared dependencies before changing code. For every UI change, also read `MOBILE_UI_UX_SYNC_GUIDE.md` and inspect the matching web screen/component when available.
+2. Treat `TASK.md` as the implementation status source of truth and `docs/architecture/mobile-features/` as the behavior/contract source of truth.
+3. Inspect only the files listed as evidence/current scope in `TASK.md` first. Expand repository reading only when imports, dependencies, or a finding require it.
+4. Implement one feature specification at a time in the order from `docs/architecture/mobile-features/README.md`.
+5. Follow existing Flutter project patterns before introducing new abstractions.
+6. Keep changes scoped to the current feature or explicitly recorded dependency.
+7. Do not revert or overwrite user changes unless explicitly requested.
+8. Prefer implementation plus verification over proposal-only answers when the request is actionable.
+9. Run the smallest relevant Flutter verification command after code changes and report the result.
+10. Before ending every coding session, update `TASK.md` current handoff, affected feature evidence/missing work, verification result, and one concise session-log row.
+
+## Feature Completion Flow
+
+1. Read the whole current feature spec and every dependency named at its top.
+2. Record the exact implementation slice and expected files in `TASK.md` before coding.
+3. Implement models/repositories first, then controllers/providers, then screens/widgets and navigation.
+4. Implement applicable loading, content, empty, cached/offline, permission, validation, unavailable, pending, failure, retry, and accessibility states.
+5. Keep documented backend gaps hidden or disabled and record them in `TASK.md`; never simulate backend success.
+6. Run formatting, `flutter analyze`, targeted tests, and `flutter test` in proportion to the change.
+7. Walk the feature behavior checklist manually where the local environment allows and record unexecuted device/backend checks.
+8. Set the feature to `Review pending` only when the entire spec is implemented and local verification passes.
+9. Create a separate review subagent after full feature implementation. Give it the feature spec, changed-file list, diff, and verification results; ask it to report contract deviations, bugs, missing states, and test gaps without editing code.
+10. The implementing agent fixes every valid review finding, reruns verification, and requests another independent review when blocking findings existed.
+11. Set `Acceptance pending` only after the reviewer reports no blocking findings.
+12. Set `Done` only after product-owner manual acceptance. The implementing agent and review subagent must never self-approve product acceptance.
+
+## Review Severity
+
+1. `Blocking`: contract mismatch, broken core path, security/privacy issue, data loss, missing required state, analyzer/test failure, or unsupported behavior presented as working.
+2. `Major`: important edge case, accessibility failure, stale cross-screen state, or missing targeted coverage that makes regression likely.
+3. `Minor`: polish or maintainability issue that does not invalidate the behavior checklist.
+4. Review output must cite file and line, the violated spec section, severity, and a concrete correction.
 
 ## Flutter Architecture
 
@@ -61,14 +87,15 @@
 
 ## UI And Error UX
 
-1. Show user-visible errors in the UI instead of only logging them.
-2. Field validation errors must appear under the matching input.
-3. Form-level errors are only for errors that cannot be mapped to a specific field.
-4. Clear a field error when the user edits that field.
-5. Disable submit controls while requests are pending.
-6. Keep loading, empty, and error states polished on every screen.
-7. Prefer native Flutter Material widgets and platform permission flows.
-8. Do not add visible instructional text unless the workflow genuinely needs it.
+1. Treat `MOBILE_UI_UX_SYNC_GUIDE.md` as the visual and interaction contract; record the UI conformance result in `TASK.md` before claiming a screen is aligned.
+2. Show user-visible errors in the UI instead of only logging them.
+3. Field validation errors must appear under the matching input.
+4. Form-level errors are only for errors that cannot be mapped to a specific field.
+5. Clear a field error when the user edits that field.
+6. Disable submit controls while requests are pending.
+7. Keep loading, empty, and error states polished on every screen.
+8. Prefer native Flutter Material widgets and platform permission flows.
+9. Do not add visible instructional text unless the workflow genuinely needs it.
 
 ## Testing And Verification
 

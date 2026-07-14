@@ -1,224 +1,132 @@
-# Kirenz Mobile Task Tracker
+# Kirenz Mobile Implementation Ledger
 
-This file tracks implementation progress against `MOBILE_APP_PLANNING.md` and `MOBILE_UI_UX_SYNC_GUIDE.md`.
+This is the project status source of truth. Read this file before scanning the repository. Detailed behavior remains authoritative in `docs/architecture/mobile-features/`.
 
-## Current Focus
+## Status Vocabulary
 
-- Current phase: Phase 3 - Profile, Friends, Privacy, Blocks.
-- Goal: finish authenticated profile and relationship workflows on top of the completed session foundation.
-- Quality gate for now: app must analyze/build/run cleanly and pass manual smoke checks. Do not add new automated tests unless they become necessary.
-- Local Android command: `flutter run --dart-define=API_BASE_URL=http://10.0.2.2:8080/api`
+| Status | Meaning |
+| --- | --- |
+| `Not started` | No production implementation exists beyond shell placeholders. |
+| `In progress` | Some production behavior exists, but one or more required spec behaviors are missing. |
+| `Review pending` | Implementation and local verification are complete; independent spec review is still required. |
+| `Acceptance pending` | Independent review passed; product-owner manual acceptance is still required. |
+| `Done` | Implementation, verification, independent review, and product-owner acceptance all passed. |
+| `Blocked` | An explicit external/backend/integration gate prevents further work and is recorded below. |
 
-## Phase Progress
+Checkboxes in feature specs describe the contract, not implementation progress. Only this ledger records implementation status.
 
-| Phase | Status | Notes |
-| --- | --- | --- |
-| Phase 0 - Planning Baseline | Done | Planning document covers current feature parity, Gateway-only access, backend DB ownership, realtime, storage, and notification direction. |
-| Phase 1 - Flutter Foundation | Mostly done | `mobile/` app exists with Material theme, `go_router`, Riverpod bootstrap, authenticated shell tabs, placeholder screens, app ids, lint config, and feature-first folders. |
-| Phase 2 - Auth and Session | Mostly done | Core auth/session infrastructure is implemented. Remaining work is backend endpoint contract verification and Google login setup. |
-| Phase 3 - Profile, Friends, Privacy, Blocks | In progress | Current user profile loads through `/users/me` with session fallback, edit profile is wired to `PATCH /users/me`, and other user profile route/repository support exists. Next work is avatar/cover upload, friends, privacy, and blocks. |
-| Phase 4 - Feed, Explore, and Social Content | Not started | Depends on authenticated HTTP client, shared API response parsing, and post DTO/entity contracts. |
-| Phase 5 - Chat and Presence | Not started | Depends on authenticated session, websocket token handling, and chat DTO/entity contracts. |
-| Phase 6 - Notifications | Not started | Depends on authenticated session and notification websocket path. |
-| Phase 7 - Push Notifications | Later | Requires backend device token endpoints, Firebase/APNs setup, and deep link contracts. |
-| Phase 8 - Stabilization and Release | Later | Manual QA, build polish, signing, icon/splash, performance checks, and critical tests. |
+## Current Handoff
 
-## Phase 0 Checklist - Planning Baseline
+- Updated: 2026-07-15.
+- Current feature: Feature 02 - Profile, Avatar, and Cover.
+- Completed slices: canonical profile/edit and native avatar/cover flow; profile posts/photos/friends use canonical backend lists; other-profile relationship/privacy/block gates and actions; staged Privacy form and Blocked Users list.
+- Codex next: `CX-01` cached/offline profile content, then Feature 02 independent review.
+- Thảo Nguyên next on 2026-07-16: `TN-01` close Feature 01 Auth/Session/OTP gaps; do not start chat tasks before its recorded dependencies pass.
+- Next command: `cd mobile && flutter analyze && flutter test`.
+- Run command: `flutter run --dart-define=API_BASE_URL=http://10.0.2.2:8080/api`.
+- Do not start Feature 03 until Feature 02 reaches at least `Acceptance pending`, unless a dependency is explicitly recorded.
 
-- [x] Confirm mobile calls only the API Gateway.
-- [x] Document backend-owned PostgreSQL, MongoDB, and Redis boundaries.
-- [x] Document current web feature parity target.
-- [x] Document REST, WebSocket, storage, realtime, and notification direction.
-- [x] Define MVP and post-MVP scope.
-- [x] Define two-person implementation ownership.
-- [x] Add UI/UX sync guide for Kirenz/Moments mobile identity.
+## Ownership And Parallel Work
 
-## Phase 1 Checklist - Flutter Foundation
+This board is the assignment source of truth from 2026-07-15. Owners must update their row and the session log before handing work off. Do not edit another owner's active files without recording a coordination note here first.
 
-- [x] Create `mobile/` Flutter project.
-- [x] Configure Android/iOS app identifiers.
-- [x] Add `--dart-define` API environment config.
-- [x] Add Material 3 app bootstrap.
-- [x] Add Riverpod provider scope.
-- [x] Add `go_router` with auth-aware redirect.
-- [x] Add authenticated shell route with bottom tabs.
-- [x] Add placeholder screens for Home, Explore, Friends, Chat, Alerts, and Profile.
-- [x] Add linting config.
-- [x] Add feature-first folder structure.
-- [x] Replace default blue seed theme with Kirenz/Moments color tokens.
-- [ ] Bundle Quicksand font assets or document fallback decision.
-- [ ] Add shared loading, empty, and error state widgets.
-- [ ] Add shared avatar/media fallback widgets.
+### Completed Implementation Slices
 
-## Phase 2 Checklist - Auth and Session
+| ID | Owner | Task | Status | Verification |
+| --- | --- | --- | --- | --- |
+| DONE-01 | Codex | Feature 02 canonical profile/edit, avatar/cover picker-crop-upload, posts/photos/friends tabs, media viewer, and other-profile access actions | Done | Analyze pass; Android debug build pass; covered in full suite 19/19; device acceptance remains a feature-level gate |
+| DONE-02 | Codex | Feature 05 Friends search/requests/suggestions/list plus Privacy and Blocks contracts, screens, actions, and projection invalidation | Done | Analyze pass; 9 focused tests; full suite 19/19; Explore and chat propagation remain separate tasks |
+| DONE-03 | Codex | Progress ledger, UI conformance gate, and independent-review workflow in project rules | Done | Documentation reviewed against current implementation flow |
 
-- [x] Keep dev sign-in available as fallback for UI smoke testing.
-- [x] Add shared API response/error parsing.
-- [x] Add Dio client with base URL and JSON headers.
-- [x] Add access-token attachment for protected requests.
-- [x] Add refresh-token retry flow for `401`.
-- [x] Add secure token storage for access token, refresh token, and current user id.
-- [x] Add auth DTOs and repository for login/register/refresh.
-- [x] Restore session on app startup.
-- [x] Wire login screen to backend login.
-- [x] Wire register screen to backend register.
-- [x] Wire OTP screen to backend verification endpoint.
-- [x] Add logout that clears secure storage and returns to login.
-- [x] Leave Google login button disabled or stubbed until mobile Google client ids are configured.
-- [ ] Verify login/register/refresh/OTP endpoint payloads against backend.
-- [ ] Add Google Sign-In mobile dependency and configure Android/iOS client ids.
-- [ ] Wire Google `idToken` to `POST /auth/google`.
-- [ ] Disconnect realtime services during logout after websocket services exist.
+`Done` above applies only to the named implementation slice. No whole feature currently satisfies the feature-level `Done` definition because review, acceptance, or remaining spec work is still open.
 
-## Phase 3 Checklist - Profile, Friends, Privacy, Blocks
+### Codex Queue
 
-- [x] Add current user profile repository through `/users/me`.
-- [x] Show current user profile data in Profile tab with loading/error/refresh states.
-- [x] Add edit profile form.
-- [x] Add other user profile repository through `/users/{id}`.
-- [x] Add other user profile route `/profile/:userId`.
-- [ ] Extend `AppUser`/profile model with username, bio, avatar URL, cover URL, friend status, and counts when backend contract is confirmed.
-- [ ] Polish profile screen to cover-photo + overlapping avatar + tabs structure.
-- [ ] Add profile posts/photos/friends tabs.
-- [ ] Add avatar upload repository through `/users/me/avatar`.
-- [ ] Add cover photo upload repository through `/users/me/cover`.
-- [ ] Add media picker bottom sheet for avatar and cover photo.
-- [ ] Add upload loading/error states and refresh profile after upload.
-- [ ] Add friends repository for `/friends/**`.
-- [ ] Add friend request lifecycle: send, accept, decline, cancel, unfriend.
-- [ ] Add friend status actions on other user profile.
-- [ ] Add user search through `/users/search`.
-- [ ] Add user suggestions.
-- [ ] Add mutual friends through `/users/{id}/mutual-friends`.
-- [ ] Add privacy settings repository through `/privacy/**`.
-- [ ] Add privacy settings screen wiring.
-- [ ] Add block repository through `/blocks/**`.
-- [ ] Add block/unblock actions.
-- [ ] Add blocked users list screen `/blocked-users`.
-- [ ] Add blocked-user warning affordance for future group chat flows.
+| Order | ID | Task | Status | Primary file ownership | Completion gate |
+| --- | --- | --- | --- | --- | --- |
+| 1 | CX-01 | Add cached/offline profile posts, photos, and opened-profile state; finish locally implementable Feature 02 and run independent review | Ready | `features/profile/**`, profile cache/storage additions | Cache/stale/offline/retry tests pass; analyze/full tests pass; reviewer has no blocking finding |
+| 2 | CX-02 | Implement Feature 03 Feed/Post CRUD/Post Media after Feature 02 reaches `Acceptance pending` | Waiting | `features/feed/**`, `features/posts/**`, shared post UI | Feature 03 checklist, tests, and independent review pass; backend gaps remain hidden |
+| 3 | CX-03 | Implement Feature 04 Comments/Replies/Reactions | Waiting | `features/comments/**`, reaction widgets/controllers | Feature 04 checklist, tests, and independent review pass |
+| 4 | CX-04 | Complete Feature 05 Explore composition and cached/offline Explore, then run Feature 05 review | Waiting | `features/explore/**`; reuse shared post contracts from CX-02 | Explore states/query/scroll/cache contract and Feature 05 independent review pass |
+| 5 | CX-05 | Close global UI foundation gaps owned outside Auth/Chat | Waiting | `app/theme.dart`, shared non-chat widgets | Quicksand decision, reusable states, accessibility and device visual check recorded |
 
-## Phase 4 Checklist - Feed, Explore, and Social Content
+### Thảo Nguyên Queue
 
-- [ ] Add post DTOs/entities shared by feed, explore, profile, and post detail.
-- [ ] Add post repository for `/posts/**`, `/comments/**`, and `/media/posts`.
-- [ ] Add feed pagination.
-- [ ] Add feed pull-to-refresh.
-- [ ] Replace placeholder feed with Kirenz-style feed scaffold.
-- [ ] Add post card with author row, metadata, body, media, counts, and action row.
-- [ ] Add skeleton loaders for feed/post cards.
-- [ ] Add create post composer.
-- [ ] Add post media upload.
-- [ ] Add edit post.
-- [ ] Add delete post with confirmation.
-- [ ] Add share post.
-- [ ] Add post detail route `/post/:postId`.
-- [ ] Add comments list.
-- [ ] Add comment composer.
-- [ ] Add replies if backend route is available.
-- [ ] Add reactions for posts.
-- [ ] Add reactions for comments.
-- [ ] Add Explore content/user discovery screen.
-- [ ] Add Explore search.
-- [ ] Add device-local cache for feed/explore/opened post details.
+Start with `TN-01` on 2026-07-16. Read `rule.md`, this ledger, the whole assigned feature spec, its dependencies, and `MOBILE_UI_UX_SYNC_GUIDE.md` before editing.
 
-## Phase 5 Checklist - Chat and Presence
+| Order | ID | Task | Status | Primary file ownership | Completion gate |
+| --- | --- | --- | --- | --- | --- |
+| 1 | TN-01 | Close Feature 01 Auth/Session/Email OTP gaps: Google login contract, unverified-login routing, backend field errors, intended destination, single-flight refresh queue, refresh-failure session notification, OTP controller state, and cleanup hooks | Assigned | `features/auth/**`, `core/network/dio_provider.dart`; coordinate before changing `app/router.dart` | Focused auth/session/network tests and full tests pass; independent reviewer has no blocking finding; unsupported backend behavior stays hidden |
+| 2 | TN-02 | Implement Feature 06 Conversations and Groups | Waiting for TN-01 and Feature 02 acceptance | `features/chat` conversation/group data, domain, controllers, list/management screens | Feature 06 checklist and tests pass; no message/realtime success is simulated |
+| 3 | TN-03 | Implement Feature 08 presence/typing/realtime connection interface after Feature 06 | Blocked by TN-02 and physical transport gate | realtime transport and chat realtime state | Native STOMP/SockJS behavior tested; physical Gateway validation remains explicitly recorded until passed |
+| 4 | TN-04 | Implement Feature 07 Chat Messages and Media against the Feature 08 connection interface | Waiting for TN-03 interface | chat message/media repositories, controllers, detail UI | Feature 07 checklist, attachment states, tests, and independent review pass |
+| 5 | TN-05 | Implement Feature 09 in-app Notifications and deep links; do not expose push settings until backend contracts exist | Waiting for route targets | `features/notifications/**`, notification deep-link integration | In-app notification checklist/tests pass; FCM/APNs remains hidden and recorded as a backend gap |
 
-- [ ] Add chat DTOs/entities for conversations, members, messages, attachments, presence, and typing.
-- [ ] Add chat repository for `/conversations/**`, `/messages/**`, `/presence/**`, and `/media/chat`.
-- [ ] Add STOMP/WebSocket client using Gateway `/ws/chat`.
-- [ ] Attach auth token in WebSocket headers.
-- [ ] Add reconnect lifecycle.
-- [ ] Add `/user/queue/messages` subscription.
-- [ ] Add `/topic/presence` subscription.
-- [ ] Add `/topic/conversation.{conversationId}` subscription.
-- [ ] Add `/topic/conversation.{conversationId}.typing` subscription.
-- [ ] Add conversation list with unread badges and presence indicator.
-- [ ] Add direct conversation creation.
-- [ ] Add chat detail route `/chat/:conversationId`.
-- [ ] Add message history pagination.
-- [ ] Add stable message composer.
-- [ ] Send text messages.
-- [ ] Send image/video/PDF/DOCX attachments.
-- [ ] Add typing indicator publish/listen flow.
-- [ ] Add group rename.
-- [ ] Add group add members.
-- [ ] Add group kick members with confirmation.
-- [ ] Add group leave/delete with confirmation.
-- [ ] Add make admin action.
-- [ ] Add nickname actions.
-- [ ] Render nickname/leave system messages.
-- [ ] Preserve sender profile display for kicked users.
-- [ ] Add device-local cache for conversations/messages.
+### Coordination Boundaries
 
-## Phase 6 Checklist - Notifications
+- Thảo Nguyên owns Auth, Chat, Realtime, and Notifications while her task is active. Codex owns Profile, Feed, Posts, Comments, Friends, Explore, and shared non-chat UI.
+- `app/router.dart`, `core/network/dio_provider.dart`, session state, and shared post entities are coordination files. Rebase or pull before editing them and record the required cross-owner change in the session log.
+- One owner implements a feature; a different agent performs its independent spec review. The reviewer reports findings without editing production code.
+- Never mark a whole feature `Done` until implementation, verification, independent review, and explicit product-owner manual acceptance all pass.
 
-- [ ] Add notification DTOs/entities.
-- [ ] Add notification repository for `/notifications/**`.
-- [ ] Add notification list screen data loading.
-- [ ] Add unread badge in Alerts tab.
-- [ ] Add mark one notification read.
-- [ ] Add mark all notifications read.
-- [ ] Add notification deep link handling to profile/post/settings/list destinations.
-- [ ] Add WebSocket client using Gateway `/ws/notifications`.
-- [ ] Add realtime notification subscription.
-- [ ] Keep chat message alerts in chat realtime state, not social notification rows.
-- [ ] Add local notification permission flow.
-- [ ] Add foreground local notification display rules.
+## UI/UX Conformance Gate
 
-## Phase 7 Checklist - Push Notifications
+- Source: `MOBILE_UI_UX_SYNC_GUIDE.md`; matching web components are supporting references.
+- Passed by code inspection: explicit Kirenz light/dark colors, Material 3, warm surfaces, rounded cards/inputs/actions, native six-destination shell, auth branding, and cover/avatar/profile tabs.
+- Open before global UI approval: bundle Quicksand or explicitly retain the documented system fallback; add independent Chat/Alerts badges when their state sources exist; replace feature placeholders with their specified loading/content/empty/error states; complete device-level visual/accessibility acceptance.
+- Current verdict: partially aligned. Never claim that all UI has passed until these open checks are closed and recorded here.
 
-- [ ] Add Firebase project setup.
-- [ ] Add FCM dependency and Android/iOS native configuration.
-- [ ] Add APNs setup for iOS.
-- [ ] Add backend device token registration contract: `POST /notifications/devices`.
-- [ ] Add backend device token deletion contract: `DELETE /notifications/devices/{deviceToken}`.
-- [ ] Add mobile client device token registration after login.
-- [ ] Add token unregister on logout.
-- [ ] Add notification preferences contract: `PATCH /notifications/preferences`.
-- [ ] Add per-device notification preferences UI.
-- [ ] Add push payload deep link routing.
+## Feature Progress
 
-## Phase 8 Checklist - Stabilization and Release
+| Order | Feature | Status | Evidence in code | Missing before review |
+| --- | --- | --- | --- | --- |
+| 00 | Flutter foundation | In progress | Material 3 app, Riverpod, `go_router`, authenticated shell, secure storage, Dio, feature folders | Quicksand asset/fallback decision; shared loading/empty/error/avatar/media widgets; shell accessibility/polish |
+| 01 | Auth, Session, Email OTP | In progress | Login/register/OTP screens; secure token storage; refresh retry; session restore/logout; auth-aware routes | Google login; unverified-login routing; backend field errors; intended destination; truly concurrent single-flight refresh queue; refresh-failure session notification; OTP state outside widget; realtime/cache cleanup hooks; manual backend/device acceptance |
+| 02 | Profile, Avatar, Cover | In progress | Canonical profile/edit/media flow; native avatar/cover picker/crop/upload; canonical Post/PostImage contracts; posts/photos/friends full states; other-profile relationship/privacy/block access gate and actions; stable grids; shared viewer; tab/scroll keep-alive; Android native build passes | Cached/offline profile content; feed author propagation after Feature 03 exists; physical Android/iOS permission/camera/library acceptance |
+| 03 | Feed, Post CRUD, Post Media | Not started | Home route is a placeholder | Entire Feature 03 spec |
+| 04 | Comments, Replies, Reactions | Not started | No production implementation | Entire Feature 04 spec |
+| 05 | Friends, Explore, Privacy, Blocks | In progress | Exact friend/search/privacy/block DTOs and enums; debounced stale-safe people search; Requests/Suggestions/Friends segments and actions; privacy-aware profile fetch gate; named relationship/block confirmations; staged Privacy form with unsaved-back guard; Blocked Users list/unblock; inaccessible profile content invalidation; full UI states | Explore composition and cached/offline Explore; direct-chat/shared-group block effects after Features 06-07 exist; widget coverage and backend/device acceptance |
+| 06 | Conversations, Groups | Not started | Chat route is a placeholder | Entire Feature 06 spec |
+| 08 | Presence, Typing, Realtime | Blocked | WebSocket paths only in config | Implement after Feature 06; physical Android/iOS Gateway transport gate must pass before release |
+| 07 | Chat Messages, Media | Not started | No production implementation | Entire Feature 07 spec; depends on Feature 08 connection interface |
+| 09 | Notifications | Not started | Alerts route is a placeholder | Entire Feature 09 spec; push/FCM remains an explicit backend gap |
 
-- [ ] Polish loading, empty, error, and permission states across implemented screens.
-- [ ] Add media compression before upload.
-- [ ] Add app icon.
-- [ ] Add splash screen.
-- [ ] Configure Android release signing.
-- [ ] Configure iOS signing profile.
-- [ ] Add unit tests for validators, DTO parsing, and key repositories.
-- [ ] Add provider/controller tests for auth, profile, feed, chat, and notifications.
-- [ ] Add widget tests for login form, feed card, post composer, chat composer, and notification item.
-- [ ] Add integration tests for critical auth/feed/profile/chat/notification flows.
-- [ ] Run performance checks for feed, explore, profile, and chat.
-- [ ] Complete Android emulator/device manual QA.
-- [ ] Complete iOS simulator/device manual QA where available.
+## Review And Acceptance Ledger
 
-## Backend Gaps For Full Mobile Support
+| Feature | Analyze | Tests | Manual checklist | Independent reviewer | Product owner | Final status |
+| --- | --- | --- | --- | --- | --- | --- |
+| Foundation | Pass, 2026-07-14 | 4 tests pass | Pending | Pending | Pending | In progress |
+| 01 Auth | Pass, 2026-07-14 | Auth shell widget tests pass | Pending | Pending | Pending | In progress |
+| 02 Profile | Pass, 2026-07-14 | 7 profile tests plus viewer test; full suite 10/10 | Android debug APK builds; device interaction pending | Must run after full Feature 02 implementation | Pending | In progress |
+| 05 Friends | Pass, 2026-07-15 | 9 focused relationship/privacy/block model, repository, and access tests; full suite 19/19 | Pending | Must run after full Feature 05 implementation | Pending | In progress |
 
-- [ ] Add push notification device token endpoints.
-- [ ] Add push provider integration.
-- [ ] Add mobile notification preferences.
-- [ ] Add notification payload deep link target type/id contract.
-- [ ] Add optional idempotency keys for offline create post/comment/message actions.
-- [ ] Add optional media compression/thumbnail variants and clearer upload validation errors.
+## Known Backend And Integration Gates
 
-## Manual Smoke Checks
+- Feature 02: avatar and cover delete endpoints do not exist; Remove controls must stay hidden.
+- Feature 03: feed pagination, post video upload, canonical media-count validation, and orphan cleanup are backend gaps.
+- Feature 08: SockJS/native STOMP, CONNECT auth, heartbeat, reconnect, and token replacement require physical Android/iOS validation through the Gateway.
+- Feature 09: FCM/APNs device-token and notification-preference contracts do not exist; push controls stay absent.
 
-- [x] `flutter analyze`
-- [ ] `flutter run --dart-define=API_BASE_URL=http://10.0.2.2:8080/api`
-- [ ] App opens to login when there is no saved session.
-- [ ] Development sign-in path can still reach the main tabs.
-- [ ] Login with backend credentials reaches `/home`.
-- [ ] Restarting the app restores a valid saved session.
-- [ ] Logout clears saved session.
-- [ ] Profile tab loads `/users/me`.
-- [ ] Edit profile saves through `PATCH /users/me`.
-- [ ] Other user profile route `/profile/:userId` loads `/users/{id}`.
+## Session Log
 
-## Decisions
+Add one concise row per implementation session. Never paste large diffs or command logs here.
 
-- Mobile calls only the API Gateway.
-- PostgreSQL, MongoDB, and Redis remain backend-owned. Mobile only keeps device-local cache copies later.
-- Automated tests are not a current requirement; prioritize stable run/analyze/manual QA.
-- Add dependencies only when the related feature is implemented enough to keep `pubspec.yaml` and `pubspec.lock` in sync.
+| Date | Scope | Result | Verification | Next |
+| --- | --- | --- | --- | --- |
+| 2026-07-14 | Re-audit repo against Features 01-09; replace phase-based tracker with spec ledger | Features 01 and 02 corrected to `In progress`; Features 03-09 are placeholders/not started; explicit gates recorded | Baseline analyze/test rerun started | Implement Feature 02 canonical profile slice |
+| 2026-07-14 | Feature 02 canonical profile slice | Added canonical DTO-shaped entity, strict envelope parsing, complete edit form/payload, multipart repository methods, stable cover/avatar header, tab shell, and focused tests | `flutter analyze --no-pub`: pass; `flutter test --no-pub`: 4 pass | Implement picker/crop/upload controller and UI; do not request review yet |
+| 2026-07-14 | Feature 02 avatar/cover media slice | Added native source sheets, permission declarations, 1:1/16:9 crop, type/10 MB validation, local composition preview, upload progress, Retry/Cancel, cache eviction, canonical profile/session propagation, and cover route | Analyze pass; full tests 7/7; Android debug APK build pass | Implement posts/photos data states and fullscreen viewer; device-test picker/crop/upload |
+| 2026-07-14 | Feature 02 posts/photos slice | Source-validated and documented `PostImageResponse`; added shared canonical Post entity, strict list repositories, tab loading/empty/error/retry/refresh/content, post cards/media grids, photo grid, and swipe/zoom/index viewer with keep-alive | Analyze pass; targeted tests 3/3; full tests 10/10 | Implement Feature 05-backed friends and other-user actions; add cached/offline content state |
+| 2026-07-14 | UI guide audit and Feature 05 friends slice | Recorded partial UI conformance gate; added canonical friend models/repository, debounced user search, request/suggestion/friend actions and full-state Friends/Profile tabs | Analyze pass; 3 focused model tests; full suite 13/13 | Implement other-profile relationship/privacy/block behavior, then privacy and blocked-user screens |
+| 2026-07-15 | Feature 05 relationship, privacy, and blocks slice | Added privacy-first other-profile access gate, all relationship actions, named block/unblock/remove confirmations, canonical staged Privacy form, Blocked Users list, and cross-projection invalidation | Analyze pass; 6 new focused tests; full suite 19/19 | Add cached/offline profile content, then complete Feature 02 independent review flow |
+| 2026-07-15 | Ownership handoff | Marked three verified implementation slices done and split all remaining work by domain: Codex owns Profile/Feed/Friends-Explore; Thảo Nguyên owns Auth/Chat/Realtime/Notifications | Assignment and file-conflict boundaries recorded | Codex starts CX-01; Thảo Nguyên starts TN-01 on 2026-07-16 |
+
+## Rules For Updating This File
+
+1. Update `Current Handoff` before ending every coding session.
+2. Update only the affected feature row and add one `Session Log` row.
+3. Record exact verification results; never mark a gate passed based only on code inspection.
+4. Move a feature to `Review pending` only after its complete spec checklist is implemented and local verification passes.
+5. A separate subagent reviews code against the feature spec. The implementing agent fixes every valid finding and reruns verification.
+6. Move to `Acceptance pending` only after the independent reviewer reports no blocking findings.
+7. Move to `Done` only after product-owner manual acceptance. Never let the implementing agent self-approve `Done`.

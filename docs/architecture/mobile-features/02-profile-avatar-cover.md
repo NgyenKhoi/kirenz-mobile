@@ -50,6 +50,19 @@ Role = USER | MODERATOR | ADMIN
 
 `GET`, `PATCH`, avatar upload, and cover upload return the canonical `UserProfileDTO` inside `ApiResponse.data`. The Flutter repository must replace the whole canonical profile instead of synthesizing a partial response.
 
+Profile content response shapes:
+
+```text
+GET /api/posts/user/{userId}
+data = List<PostResponse>
+
+GET /api/posts/user/{userId}/images
+data = List<PostImageResponse>
+PostImageResponse { postId, url, publicId, createdAt }
+```
+
+`PostResponse` is the canonical post shape defined in Feature 03. Profile photos must use `PostImageResponse` directly so viewer ordering and post ownership remain backend-canonical.
+
 Backend gaps:
 
 - No `DELETE /users/me/avatar`.
