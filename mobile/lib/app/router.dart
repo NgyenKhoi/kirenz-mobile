@@ -14,6 +14,7 @@ import '../features/friends/presentation/screens/friends_screen.dart';
 import '../features/notifications/presentation/screens/notifications_screen.dart';
 import '../features/privacy/presentation/screens/privacy_screen.dart';
 import '../features/profile/presentation/screens/edit_profile_screen.dart';
+import '../features/profile/presentation/screens/edit_cover_screen.dart';
 import '../features/profile/presentation/screens/profile_screen.dart';
 import '../shared/widgets/main_shell.dart';
 
@@ -56,11 +57,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/verify-otp',
-        builder: (context, state) =>
-            OtpVerificationScreen(
-              email: state.uri.queryParameters['email'],
-              otpWasSent: state.uri.queryParameters['otpSent'] == 'true',
-            ),
+        builder: (context, state) => OtpVerificationScreen(
+          email: state.uri.queryParameters['email'],
+          otpWasSent: state.uri.queryParameters['otpSent'] == 'true',
+        ),
       ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) {
@@ -121,6 +121,11 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/profile/edit',
         pageBuilder: (context, state) =>
             const MaterialPage(child: EditProfileScreen()),
+      ),
+      GoRoute(
+        path: '/profile/me/cover',
+        pageBuilder: (context, state) =>
+            const MaterialPage(child: EditCoverScreen()),
       ),
       GoRoute(
         path: '/profile/:userId',

@@ -83,6 +83,12 @@ class SessionController extends StateNotifier<SessionState> {
     );
   }
 
+  void updateCurrentUser(AppUser user) {
+    if (state.isAuthenticated && state.user?.id == user.id) {
+      state = SessionState.authenticated(user);
+    }
+  }
+
   Future<void> signOut() async {
     await _authRepository.logout();
     state = const SessionState.unauthenticated();
