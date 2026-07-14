@@ -15,6 +15,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  bool _obscurePassword = true;
 
   @override
   void dispose() {
@@ -96,6 +97,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             controller: _emailController,
                             enabled: !isBusy,
                             keyboardType: TextInputType.emailAddress,
+                            autofillHints: const [AutofillHints.email],
                             textInputAction: TextInputAction.next,
                             decoration: const InputDecoration(
                               labelText: 'Email',
@@ -113,12 +115,26 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           TextFormField(
                             controller: _passwordController,
                             enabled: !isBusy,
-                            obscureText: true,
+                            obscureText: _obscurePassword,
+                            autofillHints: const [AutofillHints.password],
                             textInputAction: TextInputAction.done,
                             onFieldSubmitted: (_) => isBusy ? null : _submit(),
-                            decoration: const InputDecoration(
+                            decoration: InputDecoration(
                               labelText: 'Password',
-                              prefixIcon: Icon(Icons.lock_outline_rounded),
+                              prefixIcon: const Icon(Icons.lock_outline_rounded),
+                              suffixIcon: IconButton(
+                                tooltip: _obscurePassword
+                                    ? 'Show password'
+                                    : 'Hide password',
+                                onPressed: () => setState(
+                                  () => _obscurePassword = !_obscurePassword,
+                                ),
+                                icon: Icon(
+                                  _obscurePassword
+                                      ? Icons.visibility_outlined
+                                      : Icons.visibility_off_outlined,
+                                ),
+                              ),
                             ),
                             validator: (value) {
                               if (value == null || value.isEmpty) {
@@ -151,14 +167,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           TextButton(
                             onPressed: isBusy ? null : () => context.go('/register'),
                             child: const Text('Create account'),
-                          ),
-                          TextButton(
-                            onPressed: isBusy
-                                ? null
-                                : () => ref
-                                      .read(sessionControllerProvider.notifier)
-                                      .signInForDevelopment(),
-                            child: const Text('Use development session'),
                           ),
                         ],
                       ),

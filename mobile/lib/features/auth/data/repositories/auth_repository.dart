@@ -54,19 +54,25 @@ class AuthRepository {
     return result.user;
   }
 
-  Future<void> register({
+  Future<RegisterResult> register({
     required String displayName,
+    required String username,
     required String email,
     required String password,
   }) async {
-    await _post(
+    final response = await _post(
       '/auth/register',
       data: {
         'displayName': displayName,
-        'fullName': displayName,
+        'username': username,
         'email': email,
         'password': password,
       },
+    );
+    final data = _asMap(response['data'] ?? response);
+    return RegisterResult(
+      email: data['email']?.toString() ?? email,
+      otpSent: data['otpSent'] == true,
     );
   }
 
@@ -79,9 +85,13 @@ class AuthRepository {
 
   Future<void> verifyOtp({required String email, required String code}) async {
     await _post(
-      '/verification/verify',
-      data: {'email': email, 'code': code, 'otp': code},
+      '/verification/verify-otp',
+      data: {'email': email, 'otp': code},
     );
+  }
+
+  Future<void> sendOtp({required String email}) async {
+    await _post('/verification/send-otp', data: {'email': email});
   }
 
   Future<void> logout() async {
@@ -187,4 +197,11 @@ String _errorMessage(DioException error) {
     case DioExceptionType.unknown:
       return error.message ?? 'Network request failed.';
   }
+}
+
+class RegisterResult {
+  const RegisterResult({required this.email, required this.otpSent});
+
+  final String email;
+  final bool otpSent;
 }

@@ -57,7 +57,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/verify-otp',
         builder: (context, state) =>
-            OtpVerificationScreen(email: state.uri.queryParameters['email']),
+            OtpVerificationScreen(
+              email: state.uri.queryParameters['email'],
+              otpWasSent: state.uri.queryParameters['otpSent'] == 'true',
+            ),
       ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) {

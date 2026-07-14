@@ -14,6 +14,7 @@ class RegisterScreen extends ConsumerStatefulWidget {
 class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
   final _displayNameController = TextEditingController();
+  final _usernameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isSubmitting = false;
@@ -21,6 +22,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   @override
   void dispose() {
     _displayNameController.dispose();
+    _usernameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
@@ -54,17 +56,42 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
               ),
               const SizedBox(height: 16),
               TextFormField(
+                controller: _usernameController,
+                enabled: !_isSubmitting,
+                textInputAction: TextInputAction.next,
+                autofillHints: const [AutofillHints.username],
+                decoration: const InputDecoration(
+                  labelText: 'Username',
+                  prefixIcon: Icon(Icons.alternate_email_rounded),
+                ),
+                validator: (value) {
+                  final username = value?.trim() ?? '';
+                  if (username.length < 3 || username.length > 50) {
+                    return 'Username must be 3 to 50 characters';
+                  }
+                  if (!RegExp(r'^[A-Za-z0-9._-]+$').hasMatch(username)) {
+                    return 'Use only letters, numbers, dots, dashes, or underscores';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
                 controller: _emailController,
                 enabled: !_isSubmitting,
                 keyboardType: TextInputType.emailAddress,
+                autofillHints: const [AutofillHints.email],
                 textInputAction: TextInputAction.next,
                 decoration: const InputDecoration(
                   labelText: 'Email',
                   prefixIcon: Icon(Icons.mail_outline),
                 ),
                 validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Email is required';
+                  final email = value?.trim() ?? '';
+                  if (email.length < 5 ||
+                      email.length > 255 ||
+                      !RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email)) {
+                    return 'Enter a valid email address';
                   }
 
                   return null;
@@ -75,13 +102,14 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 controller: _passwordController,
                 enabled: !_isSubmitting,
                 obscureText: true,
+                autofillHints: const [AutofillHints.newPassword],
                 decoration: const InputDecoration(
                   labelText: 'Password',
                   prefixIcon: Icon(Icons.lock_outline),
                 ),
                 validator: (value) {
-                  if (value == null || value.length < 6) {
-                    return 'Password must be at least 6 characters';
+                  if (value == null || value.length < 8) {
+                    return 'Password must be at least 8 characters';
                   }
 
                   return null;
@@ -117,10 +145,11 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     setState(() => _isSubmitting = true);
 
     try {
-      await ref
+      final result = await ref
           .read(authRepositoryProvider)
           .register(
             displayName: _displayNameController.text.trim(),
+            username: _usernameController.text.trim(),
             email: _emailController.text.trim(),
             password: _passwordController.text,
           );
@@ -130,7 +159,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       }
 
       context.go(
-        '/verify-otp?email=${Uri.encodeComponent(_emailController.text.trim())}',
+        '/verify-otp?email=${Uri.encodeComponent(result.email)}&otpSent=${result.otpSent}',
       );
     } catch (error) {
       if (!mounted) {
