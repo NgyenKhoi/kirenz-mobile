@@ -48,6 +48,28 @@ class FriendRepository {
     Friend.fromJson,
   );
 
+  Future<RelationshipStatus> getStatus(String userId) async {
+    try {
+      final response = await _dio.get<Object?>('/friends/status/$userId');
+      final body = _asMap(response.data);
+      final envelope = ApiResponse.fromJson<RelationshipStatus>(
+        body,
+        (value) => relationshipStatusFromJson(_asMap(value)['status']),
+      );
+      if (!envelope.success || envelope.data == null) {
+        throw ApiException(envelope.message ?? 'Friend status request failed.');
+      }
+      return envelope.data!;
+    } on ApiException {
+      rethrow;
+    } on DioException catch (error) {
+      throw ApiException(
+        _errorMessage(error),
+        statusCode: error.response?.statusCode,
+      );
+    }
+  }
+
   Future<void> sendRequest(String userId) => _write(
     () => _dio.post<Object?>('/friends/requests', data: {'receiverId': userId}),
   );

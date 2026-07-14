@@ -22,6 +22,13 @@ final friendsProvider = FutureProvider.family<List<Friend>, String?>((
   return ref.watch(friendRepositoryProvider).getFriends(userId: userId);
 });
 
+final friendStatusProvider = FutureProvider.family<RelationshipStatus, String>((
+  ref,
+  userId,
+) {
+  return ref.watch(friendRepositoryProvider).getStatus(userId);
+});
+
 final userSearchProvider = FutureProvider.autoDispose
     .family<List<UserSearchResult>, String>((ref, query) {
       final normalized = query.trim();
@@ -63,6 +70,45 @@ class FriendActionController extends Notifier<Set<String>> {
     () => ref.read(friendRepositoryProvider).removeFriend(userId),
   );
 
+  Future<void> acceptRequestForUser(String userId) => _run(userId, () async {
+    final requests = await ref
+        .read(friendRepositoryProvider)
+        .getIncomingRequests();
+    final request = requests
+        .where((item) => item.requesterId == userId)
+        .firstOrNull;
+    if (request == null) {
+      throw StateError('The incoming request is no longer available.');
+    }
+    await ref.read(friendRepositoryProvider).acceptRequest(request.id);
+  });
+
+  Future<void> declineRequestForUser(String userId) => _run(userId, () async {
+    final requests = await ref
+        .read(friendRepositoryProvider)
+        .getIncomingRequests();
+    final request = requests
+        .where((item) => item.requesterId == userId)
+        .firstOrNull;
+    if (request == null) {
+      throw StateError('The incoming request is no longer available.');
+    }
+    await ref.read(friendRepositoryProvider).declineRequest(request.id);
+  });
+
+  Future<void> cancelRequestForUser(String userId) => _run(userId, () async {
+    final requests = await ref
+        .read(friendRepositoryProvider)
+        .getOutgoingRequests();
+    final request = requests
+        .where((item) => item.receiverId == userId)
+        .firstOrNull;
+    if (request == null) {
+      throw StateError('The outgoing request is no longer available.');
+    }
+    await ref.read(friendRepositoryProvider).cancelRequest(request.id);
+  });
+
   Future<void> _run(String userId, Future<void> Function() action) async {
     if (state.contains(userId)) return;
     state = {...state, userId};
@@ -73,6 +119,7 @@ class FriendActionController extends Notifier<Set<String>> {
       ref.invalidate(friendSuggestionsProvider);
       ref.invalidate(friendsProvider);
       ref.invalidate(userSearchProvider);
+      ref.invalidate(friendStatusProvider(userId));
     } finally {
       state = {...state}..remove(userId);
     }

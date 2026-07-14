@@ -7,8 +7,12 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../auth/presentation/controllers/session_controller.dart';
+import '../../../blocks/presentation/controllers/block_controller.dart';
+import '../../../friends/domain/entities/friend_models.dart';
+import '../../../friends/presentation/controllers/friends_controller.dart';
 import '../../data/repositories/profile_repository.dart';
 import '../../domain/entities/user_profile.dart';
+import '../controllers/profile_access_controller.dart';
 import '../controllers/profile_media_controller.dart';
 import '../widgets/profile_content_tabs.dart';
 
@@ -20,9 +24,12 @@ class ProfileScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isCurrentUser = userId == null;
-    final profile = isCurrentUser
+    final currentProfile = isCurrentUser
         ? ref.watch(currentUserProfileProvider)
-        : ref.watch(userProfileProvider(userId!));
+        : null;
+    final access = isCurrentUser
+        ? null
+        : ref.watch(profileAccessProvider(userId!));
 
     return DefaultTabController(
       length: 3,
@@ -43,21 +50,44 @@ class ProfileScreen extends ConsumerWidget {
                     ref.read(sessionControllerProvider.notifier).signOut(),
                 icon: const Icon(Icons.logout),
               ),
+            if (!isCurrentUser && access?.value != null)
+              _ProfileActionsMenu(
+                userId: userId!,
+                displayName: access!.value!.profile?.displayName,
+                access: access.value!,
+              ),
           ],
         ),
         body: SafeArea(
-          child: profile.when(
-            data: (user) => _ProfileContent(
-              user: user,
-              isCurrentUser: isCurrentUser,
-              onRefresh: () => _refresh(ref, isCurrentUser),
-            ),
-            loading: () => const _ProfileLoading(),
-            error: (error, stackTrace) => _ProfileError(
-              message: error.toString(),
-              onRetry: () => _invalidate(ref, isCurrentUser),
-            ),
-          ),
+          child: isCurrentUser
+              ? currentProfile!.when(
+                  data: (user) => _ProfileContent(
+                    user: user,
+                    isCurrentUser: true,
+                    relationship: RelationshipStatus.self,
+                    onRefresh: () => _refresh(ref, true),
+                  ),
+                  loading: () => const _ProfileLoading(),
+                  error: (error, stackTrace) => _ProfileError(
+                    message: error.toString(),
+                    onRetry: () => _invalidate(ref, true),
+                  ),
+                )
+              : access!.when(
+                  data: (value) => value.profile == null
+                      ? _RestrictedProfile(userId: userId!, access: value)
+                      : _ProfileContent(
+                          user: value.profile!,
+                          isCurrentUser: false,
+                          relationship: value.relationship,
+                          onRefresh: () => _refresh(ref, false),
+                        ),
+                  loading: () => const _ProfileLoading(),
+                  error: (error, stackTrace) => _ProfileError(
+                    message: error.toString(),
+                    onRetry: () => _invalidate(ref, false),
+                  ),
+                ),
         ),
       ),
     );
@@ -68,7 +98,7 @@ class ProfileScreen extends ConsumerWidget {
     if (isCurrentUser) {
       await ref.read(currentUserProfileProvider.future);
     } else {
-      await ref.read(userProfileProvider(userId!).future);
+      await ref.read(profileAccessProvider(userId!).future);
     }
   }
 
@@ -76,7 +106,7 @@ class ProfileScreen extends ConsumerWidget {
     if (isCurrentUser) {
       ref.invalidate(currentUserProfileProvider);
     } else {
-      ref.invalidate(userProfileProvider(userId!));
+      ref.invalidate(profileAccessProvider(userId!));
     }
   }
 }
@@ -85,11 +115,13 @@ class _ProfileContent extends ConsumerWidget {
   const _ProfileContent({
     required this.user,
     required this.isCurrentUser,
+    required this.relationship,
     required this.onRefresh,
   });
 
   final UserProfile user;
   final bool isCurrentUser;
+  final RelationshipStatus relationship;
   final Future<void> Function() onRefresh;
 
   @override
@@ -118,6 +150,7 @@ class _ProfileContent extends ConsumerWidget {
                     child: _ProfileDetails(
                       user: user,
                       isCurrentUser: isCurrentUser,
+                      relationship: relationship,
                     ),
                   ),
                   if (isCurrentUser && avatarMedia.errorMessage != null)
@@ -353,10 +386,15 @@ class _NetworkImageSurface extends StatelessWidget {
 }
 
 class _ProfileDetails extends StatelessWidget {
-  const _ProfileDetails({required this.user, required this.isCurrentUser});
+  const _ProfileDetails({
+    required this.user,
+    required this.isCurrentUser,
+    required this.relationship,
+  });
 
   final UserProfile user;
   final bool isCurrentUser;
+  final RelationshipStatus relationship;
 
   @override
   Widget build(BuildContext context) {
@@ -412,6 +450,14 @@ class _ProfileDetails extends StatelessWidget {
             ],
           ),
         ],
+        if (!isCurrentUser) ...[
+          const SizedBox(height: 16),
+          _RelationshipActions(
+            userId: user.id,
+            displayName: user.displayName,
+            relationship: relationship,
+          ),
+        ],
       ],
     );
   }
@@ -429,6 +475,359 @@ class _Detail extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [Icon(icon, size: 18), const SizedBox(width: 5), Text(label)],
     );
+  }
+}
+
+class _RelationshipActions extends ConsumerWidget {
+  const _RelationshipActions({
+    required this.userId,
+    required this.relationship,
+    this.displayName,
+  });
+
+  final String userId;
+  final RelationshipStatus relationship;
+  final String? displayName;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final pending = ref.watch(friendActionControllerProvider).contains(userId);
+    final actions = ref.read(friendActionControllerProvider.notifier);
+    Future<void> run(Future<void> Function() action) =>
+        _showProfileActionError(context, action);
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: switch (relationship) {
+        RelationshipStatus.none => [
+          FilledButton.icon(
+            onPressed: pending
+                ? null
+                : () => run(() => actions.sendRequest(userId)),
+            icon: const Icon(Icons.person_add_outlined),
+            label: const Text('Add friend'),
+          ),
+        ],
+        RelationshipStatus.outgoingRequest => [
+          OutlinedButton.icon(
+            onPressed: pending
+                ? null
+                : () => run(() => actions.cancelRequestForUser(userId)),
+            icon: const Icon(Icons.person_remove_outlined),
+            label: const Text('Cancel request'),
+          ),
+        ],
+        RelationshipStatus.incomingRequest => [
+          FilledButton.icon(
+            onPressed: pending
+                ? null
+                : () => run(() => actions.acceptRequestForUser(userId)),
+            icon: const Icon(Icons.check),
+            label: const Text('Accept'),
+          ),
+          OutlinedButton(
+            onPressed: pending
+                ? null
+                : () => run(() => actions.declineRequestForUser(userId)),
+            child: const Text('Decline'),
+          ),
+        ],
+        RelationshipStatus.friends => [
+          OutlinedButton.icon(
+            onPressed: pending
+                ? null
+                : () => _confirmRemoveFriend(context, ref, userId, displayName),
+            icon: const Icon(Icons.people_outline),
+            label: const Text('Friends'),
+          ),
+        ],
+        RelationshipStatus.blocked => [const Chip(label: Text('Blocked'))],
+        RelationshipStatus.blockedByTarget => [
+          const Chip(label: Text('Unavailable')),
+        ],
+        RelationshipStatus.unsupported => [
+          const Chip(label: Text('Unavailable')),
+        ],
+        RelationshipStatus.self => <Widget>[],
+      },
+    );
+  }
+}
+
+class _RestrictedProfile extends ConsumerWidget {
+  const _RestrictedProfile({required this.userId, required this.access});
+
+  final String userId;
+  final ProfileAccess access;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final pending = ref.watch(blockActionControllerProvider).contains(userId);
+    if (access.blockedByViewer) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.block_outlined, size: 52),
+              const SizedBox(height: 12),
+              Text(
+                'You blocked this user',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Unblock to let visibility and interactions follow privacy settings again.',
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 20),
+              FilledButton(
+                onPressed: pending
+                    ? null
+                    : () => _confirmProfileUnblock(context, ref, userId, null),
+                child: const Text('Unblock'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    if (access.blockedViewer) {
+      return const _UnavailableProfile(
+        icon: Icons.person_off_outlined,
+        title: 'Profile unavailable',
+        message: 'You cannot view or interact with this profile.',
+      );
+    }
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.lock_outline, size: 52),
+            const SizedBox(height: 12),
+            Text(
+              'This profile is private',
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Profile details are visible according to this user’s privacy settings.',
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 20),
+            _RelationshipActions(
+              userId: userId,
+              relationship: access.relationship,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _UnavailableProfile extends StatelessWidget {
+  const _UnavailableProfile({
+    required this.icon,
+    required this.title,
+    required this.message,
+  });
+  final IconData icon;
+  final String title;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 52),
+          const SizedBox(height: 12),
+          Text(
+            title,
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 8),
+          Text(message, textAlign: TextAlign.center),
+        ],
+      ),
+    ),
+  );
+}
+
+class _ProfileActionsMenu extends ConsumerWidget {
+  const _ProfileActionsMenu({
+    required this.userId,
+    required this.displayName,
+    required this.access,
+  });
+  final String userId;
+  final String? displayName;
+  final ProfileAccess access;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (access.blockedViewer) return const SizedBox.shrink();
+    final pending = ref.watch(blockActionControllerProvider).contains(userId);
+    return PopupMenuButton<_ProfileMenuAction>(
+      tooltip: 'User actions',
+      enabled: !pending,
+      onSelected: (action) {
+        if (action == _ProfileMenuAction.block) {
+          _confirmProfileBlock(context, ref, userId, displayName);
+        } else {
+          _confirmProfileUnblock(context, ref, userId, displayName);
+        }
+      },
+      itemBuilder: (context) => [
+        PopupMenuItem(
+          value: access.blockedByViewer
+              ? _ProfileMenuAction.unblock
+              : _ProfileMenuAction.block,
+          child: Row(
+            children: [
+              Icon(
+                access.blockedByViewer
+                    ? Icons.lock_open_outlined
+                    : Icons.block_outlined,
+              ),
+              const SizedBox(width: 12),
+              Text(access.blockedByViewer ? 'Unblock' : 'Block'),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+enum _ProfileMenuAction { block, unblock }
+
+Future<void> _confirmRemoveFriend(
+  BuildContext context,
+  WidgetRef ref,
+  String userId,
+  String? displayName,
+) async {
+  final name = displayName?.trim().isNotEmpty == true ? displayName! : userId;
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      title: Text('Remove $name?'),
+      content: const Text('You will no longer be friends.'),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(dialogContext, false),
+          child: const Text('Keep friend'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(dialogContext, true),
+          child: const Text('Remove'),
+        ),
+      ],
+    ),
+  );
+  if (confirmed == true && context.mounted) {
+    await _showProfileActionError(
+      context,
+      () => ref
+          .read(friendActionControllerProvider.notifier)
+          .removeFriend(userId),
+    );
+  }
+}
+
+Future<void> _confirmProfileBlock(
+  BuildContext context,
+  WidgetRef ref,
+  String userId,
+  String? displayName,
+) async {
+  final name = displayName?.trim().isNotEmpty == true ? displayName! : userId;
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      title: Text('Block $name?'),
+      content: Text(
+        '$name will no longer be able to find, view, or interact with you. Shared group conversations may still remain visible.',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(dialogContext, false),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(dialogContext, true),
+          child: const Text('Block'),
+        ),
+      ],
+    ),
+  );
+  if (confirmed == true && context.mounted) {
+    await _showProfileActionError(
+      context,
+      () => ref.read(blockActionControllerProvider.notifier).block(userId),
+    );
+  }
+}
+
+Future<void> _confirmProfileUnblock(
+  BuildContext context,
+  WidgetRef ref,
+  String userId,
+  String? displayName,
+) async {
+  final name = displayName?.trim().isNotEmpty == true ? displayName! : userId;
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      title: Text('Unblock $name?'),
+      content: const Text(
+        'Visibility and interactions will again depend on both users’ privacy settings.',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(dialogContext, false),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(dialogContext, true),
+          child: const Text('Unblock'),
+        ),
+      ],
+    ),
+  );
+  if (confirmed == true && context.mounted) {
+    await _showProfileActionError(
+      context,
+      () => ref.read(blockActionControllerProvider.notifier).unblock(userId),
+    );
+  }
+}
+
+Future<void> _showProfileActionError(
+  BuildContext context,
+  Future<void> Function() action,
+) async {
+  try {
+    await action();
+  } on Object catch (error) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.toString())));
+    }
   }
 }
 

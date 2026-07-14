@@ -191,7 +191,9 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
   }
 
   Future<void> _verify() async {
-    if (_isVerifying || _codeController.text.length != 6 || _email.isEmpty) return;
+    if (_isVerifying || _codeController.text.length != 6 || _email.isEmpty) {
+      return;
+    }
     setState(() {
       _isVerifying = true;
       _errorMessage = null;
