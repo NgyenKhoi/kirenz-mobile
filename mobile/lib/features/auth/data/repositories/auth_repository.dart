@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/config/app_config.dart';
 import '../../../../core/errors/api_exception.dart';
 import '../../../../core/network/api_response.dart';
 import '../../../../core/network/dio_provider.dart';
@@ -171,5 +172,19 @@ String _errorMessage(DioException error) {
     return message;
   }
 
-  return error.message ?? 'Network request failed.';
+  switch (error.type) {
+    case DioExceptionType.connectionError:
+    case DioExceptionType.connectionTimeout:
+    case DioExceptionType.sendTimeout:
+    case DioExceptionType.receiveTimeout:
+    case DioExceptionType.transformTimeout:
+      return 'Cannot reach the Kirenz API Gateway at ${AppConfig.apiBaseUrl}. Make sure the backend is running on port 8080. Android emulator should use 10.0.2.2, not localhost.';
+    case DioExceptionType.badCertificate:
+      return 'The Kirenz API certificate is not trusted by this device.';
+    case DioExceptionType.cancel:
+      return 'Login request was cancelled.';
+    case DioExceptionType.badResponse:
+    case DioExceptionType.unknown:
+      return error.message ?? 'Network request failed.';
+  }
 }

@@ -120,6 +120,13 @@ final routerProvider = Provider<GoRouter>((ref) {
             const MaterialPage(child: EditProfileScreen()),
       ),
       GoRoute(
+        path: '/profile/:userId',
+        pageBuilder: (context, state) {
+          final userId = state.pathParameters['userId'] ?? '';
+          return MaterialPage(child: ProfileScreen(userId: userId));
+        },
+      ),
+      GoRoute(
         path: '/privacy',
         pageBuilder: (context, state) =>
             const MaterialPage(child: PrivacyScreen()),
