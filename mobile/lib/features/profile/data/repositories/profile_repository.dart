@@ -25,6 +25,13 @@ final currentUserProfileProvider = FutureProvider<AppUser>((ref) async {
   }
 });
 
+final userProfileProvider = FutureProvider.family<AppUser, String>((
+  ref,
+  userId,
+) async {
+  return ref.watch(profileRepositoryProvider).getUser(userId);
+});
+
 class ProfileRepository {
   const ProfileRepository(this._dio);
 
@@ -32,6 +39,10 @@ class ProfileRepository {
 
   Future<AppUser> getCurrentUser() async {
     return _readUser(() => _dio.get<Object?>('/users/me'));
+  }
+
+  Future<AppUser> getUser(String userId) async {
+    return _readUser(() => _dio.get<Object?>('/users/$userId'));
   }
 
   Future<AppUser> updateCurrentUser({required String displayName}) async {

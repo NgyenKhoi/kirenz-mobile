@@ -7,42 +7,64 @@ import '../../../auth/presentation/controllers/session_controller.dart';
 import '../../data/repositories/profile_repository.dart';
 
 class ProfileScreen extends ConsumerWidget {
-  const ProfileScreen({super.key});
+  const ProfileScreen({this.userId, super.key});
+
+  final String? userId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final profile = ref.watch(currentUserProfileProvider);
+    final isCurrentUser = userId == null;
+    final profile = isCurrentUser
+        ? ref.watch(currentUserProfileProvider)
+        : ref.watch(userProfileProvider(userId!));
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Profile'),
+        title: Text(isCurrentUser ? 'Profile' : 'User profile'),
         actions: [
-          IconButton(
-            tooltip: 'Privacy',
-            onPressed: () => context.push('/privacy'),
-            icon: const Icon(Icons.shield_outlined),
-          ),
-          IconButton(
-            tooltip: 'Logout',
-            onPressed: () {
-              ref.read(sessionControllerProvider.notifier).signOut();
-            },
-            icon: const Icon(Icons.logout),
-          ),
+          if (isCurrentUser) ...[
+            IconButton(
+              tooltip: 'Privacy',
+              onPressed: () => context.push('/privacy'),
+              icon: const Icon(Icons.shield_outlined),
+            ),
+            IconButton(
+              tooltip: 'Logout',
+              onPressed: () {
+                ref.read(sessionControllerProvider.notifier).signOut();
+              },
+              icon: const Icon(Icons.logout),
+            ),
+          ],
         ],
       ),
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: () async {
-            ref.invalidate(currentUserProfileProvider);
-            await ref.read(currentUserProfileProvider.future);
+            if (isCurrentUser) {
+              ref.invalidate(currentUserProfileProvider);
+              await ref.read(currentUserProfileProvider.future);
+              return;
+            }
+
+            ref.invalidate(userProfileProvider(userId!));
+            await ref.read(userProfileProvider(userId!).future);
           },
           child: profile.when(
-            data: (user) => _ProfileContent(user: user),
+            data: (user) => _ProfileContent(
+              user: user,
+              isCurrentUser: isCurrentUser,
+            ),
             loading: () => const _ProfileLoading(),
             error: (error, stackTrace) => _ProfileError(
               message: error.toString(),
-              onRetry: () => ref.invalidate(currentUserProfileProvider),
+              onRetry: () {
+                if (isCurrentUser) {
+                  ref.invalidate(currentUserProfileProvider);
+                } else {
+                  ref.invalidate(userProfileProvider(userId!));
+                }
+              },
             ),
           ),
         ),
@@ -52,9 +74,10 @@ class ProfileScreen extends ConsumerWidget {
 }
 
 class _ProfileContent extends StatelessWidget {
-  const _ProfileContent({required this.user});
+  const _ProfileContent({required this.user, required this.isCurrentUser});
 
   final AppUser user;
+  final bool isCurrentUser;
 
   @override
   Widget build(BuildContext context) {
@@ -96,26 +119,43 @@ class _ProfileContent extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 16),
-        _ProfileActionTile(
-          icon: Icons.edit_outlined,
-          title: 'Edit profile',
-          onTap: () => context.push('/profile/edit'),
-        ),
-        const SizedBox(height: 12),
-        const _ProfileActionTile(
-          icon: Icons.image_outlined,
-          title: 'Avatar upload',
-        ),
-        const SizedBox(height: 12),
-        const _ProfileActionTile(
-          icon: Icons.panorama_outlined,
-          title: 'Cover photo upload',
-        ),
-        const SizedBox(height: 12),
-        const _ProfileActionTile(
-          icon: Icons.photo_library_outlined,
-          title: 'Photos and friends tabs',
-        ),
+        if (isCurrentUser) ...[
+          _ProfileActionTile(
+            icon: Icons.edit_outlined,
+            title: 'Edit profile',
+            onTap: () => context.push('/profile/edit'),
+          ),
+          const SizedBox(height: 12),
+          const _ProfileActionTile(
+            icon: Icons.image_outlined,
+            title: 'Avatar upload',
+          ),
+          const SizedBox(height: 12),
+          const _ProfileActionTile(
+            icon: Icons.panorama_outlined,
+            title: 'Cover photo upload',
+          ),
+          const SizedBox(height: 12),
+          const _ProfileActionTile(
+            icon: Icons.photo_library_outlined,
+            title: 'Photos and friends tabs',
+          ),
+        ] else ...[
+          const _ProfileActionTile(
+            icon: Icons.person_add_alt_1_outlined,
+            title: 'Friend actions',
+          ),
+          const SizedBox(height: 12),
+          const _ProfileActionTile(
+            icon: Icons.block_outlined,
+            title: 'Block user',
+          ),
+          const SizedBox(height: 12),
+          const _ProfileActionTile(
+            icon: Icons.people_outline,
+            title: 'Mutual friends',
+          ),
+        ],
       ],
     );
   }
@@ -132,10 +172,11 @@ class _ProfileActionTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       tileColor: Theme.of(context).colorScheme.surfaceContainerLow,
       leading: Icon(icon),
       title: Text(title),
+      trailing: onTap == null ? null : const Icon(Icons.chevron_right),
       onTap: onTap,
     );
   }
