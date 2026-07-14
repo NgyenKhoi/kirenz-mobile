@@ -26,6 +26,10 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Kirenz uses the camera when you choose to take a new profile photo.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Kirenz uses your photo library when you choose a profile or cover photo.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
