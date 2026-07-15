@@ -7,10 +7,17 @@ import '../../../../core/network/dio_provider.dart';
 import '../../../auth/domain/entities/app_user.dart';
 import '../../../auth/presentation/controllers/session_controller.dart';
 import '../../domain/entities/user_profile.dart';
+import '../cache/profile_cache.dart';
 
 final profileRepositoryProvider = Provider<ProfileRepository>((ref) {
-  return ProfileRepository(ref.watch(dioProvider));
+  return ProfileRepository(
+    ref.watch(dioProvider),
+    ref.watch(profileCacheProvider),
+  );
 });
+
+final profileCacheStatusProvider =
+    StateProvider.family<ProfileCacheEntry?, String>((ref, userId) => null);
 
 final currentUserProfileProvider =
     AsyncNotifierProvider<CurrentUserProfileController, UserProfile>(
@@ -22,7 +29,15 @@ class CurrentUserProfileController extends AsyncNotifier<UserProfile> {
   Future<UserProfile> build() async {
     final sessionUser = ref.watch(sessionControllerProvider).user;
     try {
-      return await ref.watch(profileRepositoryProvider).getCurrentUser();
+      final result = await ref
+          .watch(profileRepositoryProvider)
+          .getCurrentUserCached();
+      ref
+          .read(profileCacheStatusProvider(result.data.id).notifier)
+          .state = result.isCached && result.cachedAt != null
+          ? ProfileCacheEntry(value: null, updatedAt: result.cachedAt!)
+          : null;
+      return result.data;
     } on ApiException {
       if (sessionUser?.id == 'dev-user') {
         return UserProfile(
@@ -67,7 +82,15 @@ final userProfileProvider = FutureProvider.family<UserProfile, String>((
   ref,
   userId,
 ) async {
-  return ref.watch(profileRepositoryProvider).getUser(userId);
+  final result = await ref
+      .watch(profileRepositoryProvider)
+      .getUserCached(userId);
+  ref
+      .read(profileCacheStatusProvider(userId).notifier)
+      .state = result.isCached && result.cachedAt != null
+      ? ProfileCacheEntry(value: null, updatedAt: result.cachedAt!)
+      : null;
+  return result.data;
 });
 
 class ProfileUpdate {
@@ -108,21 +131,37 @@ class ProfileUpdate {
 }
 
 class ProfileRepository {
-  const ProfileRepository(this._dio);
+  const ProfileRepository(this._dio, [this._cache]);
 
   final Dio _dio;
+  final ProfileCache? _cache;
 
-  Future<UserProfile> getCurrentUser() {
-    return _readProfile(() => _dio.get<Object?>('/users/me'));
+  Future<UserProfile> getCurrentUser() async {
+    return (await getCurrentUserCached()).data;
   }
 
-  Future<UserProfile> getUser(String userId) {
-    return _readProfile(() => _dio.get<Object?>('/users/$userId'));
+  Future<CachedProfileResource<UserProfile>> getCurrentUserCached() {
+    return _readProfileCached(
+      () => _dio.get<Object?>('/users/me'),
+      userId: 'me',
+    );
+  }
+
+  Future<UserProfile> getUser(String userId) async {
+    return (await getUserCached(userId)).data;
+  }
+
+  Future<CachedProfileResource<UserProfile>> getUserCached(String userId) {
+    return _readProfileCached(
+      () => _dio.get<Object?>('/users/$userId'),
+      userId: userId,
+    );
   }
 
   Future<UserProfile> updateCurrentUser(ProfileUpdate update) {
-    return _readProfile(
+    return _readProfileNetwork(
       () => _dio.patch<Object?>('/users/me', data: update.toJson()),
+      onData: (data) => _writeCache('me', data),
     );
   }
 
@@ -150,19 +189,65 @@ class ProfileRepository {
     ProgressCallback? onSendProgress,
   }) async {
     final file = await MultipartFile.fromFile(filePath);
-    return _readProfile(
+    return _readProfileNetwork(
       () => _dio.post<Object?>(
         path,
         data: FormData.fromMap({'file': file}),
         options: Options(contentType: 'multipart/form-data'),
         onSendProgress: onSendProgress,
       ),
+      onData: (data) => _writeCache('me', data),
     );
   }
 
-  Future<UserProfile> _readProfile(
-    Future<Response<Object?>> Function() request,
-  ) async {
+  Future<CachedProfileResource<UserProfile>> _readProfileCached(
+    Future<Response<Object?>> Function() request, {
+    required String userId,
+  }) async {
+    try {
+      final profile = await _readProfileNetwork(
+        request,
+        onData: (data) => _writeCache(userId, data),
+      );
+      return CachedProfileResource(data: profile, isCached: false);
+    } on ApiException catch (error) {
+      final canUseCache =
+          error.statusCode == null || (error.statusCode ?? 0) >= 500;
+      final cached = canUseCache ? await _readCache(userId) : null;
+      if (cached?.value is Map) {
+        final profile = UserProfile.fromJson(_asMap(cached!.value));
+        if (profile.id.isNotEmpty) {
+          return CachedProfileResource(
+            data: profile,
+            isCached: true,
+            cachedAt: cached.updatedAt,
+          );
+        }
+      }
+      rethrow;
+    }
+  }
+
+  Future<void> _writeCache(String userId, Object? data) async {
+    try {
+      await _cache?.write('profile', userId, data);
+    } on Object {
+      return;
+    }
+  }
+
+  Future<ProfileCacheEntry?> _readCache(String userId) async {
+    try {
+      return await _cache?.read('profile', userId);
+    } on Object {
+      return null;
+    }
+  }
+
+  Future<UserProfile> _readProfileNetwork(
+    Future<Response<Object?>> Function() request, {
+    Future<void>? Function(Object? data)? onData,
+  }) async {
     try {
       final response = await request();
       final body = _asMap(response.data);
@@ -177,6 +262,7 @@ class ProfileRepository {
       if (profile == null || profile.id.isEmpty) {
         throw const ApiException('Profile response did not include a user.');
       }
+      await onData?.call(body['data']);
       return profile;
     } on ApiException {
       rethrow;

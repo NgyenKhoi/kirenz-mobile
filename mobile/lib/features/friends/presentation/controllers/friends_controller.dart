@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/repositories/friend_repository.dart';
+import '../../../profile/data/cache/profile_cache.dart';
 import '../../domain/entities/friend_models.dart';
 
 final incomingRequestsProvider = FutureProvider<List<FriendRequest>>((ref) {
@@ -114,6 +115,7 @@ class FriendActionController extends Notifier<Set<String>> {
     state = {...state, userId};
     try {
       await action();
+      await ref.read(profileCacheProvider).removeUser(userId);
       ref.invalidate(incomingRequestsProvider);
       ref.invalidate(outgoingRequestsProvider);
       ref.invalidate(friendSuggestionsProvider);

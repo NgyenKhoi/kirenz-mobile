@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../friends/presentation/controllers/friends_controller.dart';
 import '../../../profile/data/repositories/profile_content_repository.dart';
+import '../../../profile/data/cache/profile_cache.dart';
 import '../../data/repositories/block_repository.dart';
 import '../../domain/entities/block_models.dart';
 
@@ -36,6 +37,7 @@ class BlockActionController extends Notifier<Set<String>> {
     state = {...state, userId};
     try {
       await action();
+      await ref.read(profileCacheProvider).removeUser(userId);
       ref.invalidate(blockedUsersProvider);
       ref.invalidate(blockStatusProvider(userId));
       ref.invalidate(friendStatusProvider(userId));

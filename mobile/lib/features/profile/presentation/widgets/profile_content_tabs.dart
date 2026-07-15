@@ -28,26 +28,42 @@ class _ProfilePostsTabState extends ConsumerState<ProfilePostsTab>
     super.build(context);
     final posts = ref.watch(profilePostsProvider(widget.userId));
     return posts.when(
-      data: (items) {
+      data: (result) {
+        final items = result.data;
         if (items.isEmpty) {
-          return _RefreshableState(
-            key: PageStorageKey('profile-posts-${widget.userId}'),
-            icon: Icons.article_outlined,
-            title: 'No posts yet',
-            onRefresh: _refresh,
+          return Column(
+            children: [
+              if (result.isCached) _CachedNotice(cachedAt: result.cachedAt),
+              Expanded(
+                child: _RefreshableState(
+                  key: PageStorageKey('profile-posts-${widget.userId}'),
+                  icon: Icons.article_outlined,
+                  title: 'No posts yet',
+                  onRefresh: _refresh,
+                ),
+              ),
+            ],
           );
         }
-        return RefreshIndicator(
-          onRefresh: _refresh,
-          child: ListView.separated(
-            key: PageStorageKey('profile-posts-${widget.userId}'),
-            padding: const EdgeInsets.all(16),
-            physics: const AlwaysScrollableScrollPhysics(),
-            itemCount: items.length,
-            separatorBuilder: (context, index) => const SizedBox(height: 14),
-            itemBuilder: (context, index) =>
-                _ProfilePostCard(post: items[index]),
-          ),
+        return Column(
+          children: [
+            if (result.isCached) _CachedNotice(cachedAt: result.cachedAt),
+            Expanded(
+              child: RefreshIndicator(
+                onRefresh: _refresh,
+                child: ListView.separated(
+                  key: PageStorageKey('profile-posts-${widget.userId}'),
+                  padding: const EdgeInsets.all(16),
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  itemCount: items.length,
+                  separatorBuilder: (context, index) =>
+                      const SizedBox(height: 14),
+                  itemBuilder: (context, index) =>
+                      _ProfilePostCard(post: items[index]),
+                ),
+              ),
+            ),
+          ],
         );
       },
       loading: () => ListView.separated(
@@ -86,35 +102,53 @@ class _ProfilePhotosTabState extends ConsumerState<ProfilePhotosTab>
     super.build(context);
     final photos = ref.watch(profilePhotosProvider(widget.userId));
     return photos.when(
-      data: (items) {
+      data: (result) {
+        final items = result.data;
         if (items.isEmpty) {
-          return _RefreshableState(
-            key: PageStorageKey('profile-photos-${widget.userId}'),
-            icon: Icons.photo_library_outlined,
-            title: 'No photos yet',
-            onRefresh: _refresh,
+          return Column(
+            children: [
+              if (result.isCached) _CachedNotice(cachedAt: result.cachedAt),
+              Expanded(
+                child: _RefreshableState(
+                  key: PageStorageKey('profile-photos-${widget.userId}'),
+                  icon: Icons.photo_library_outlined,
+                  title: 'No photos yet',
+                  onRefresh: _refresh,
+                ),
+              ),
+            ],
           );
         }
         final urls = items.map((item) => item.url).toList(growable: false);
-        return RefreshIndicator(
-          onRefresh: _refresh,
-          child: GridView.builder(
-            key: PageStorageKey('profile-photos-${widget.userId}'),
-            padding: const EdgeInsets.all(3),
-            physics: const AlwaysScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 3,
-              mainAxisSpacing: 3,
-              crossAxisSpacing: 3,
+        return Column(
+          children: [
+            if (result.isCached) _CachedNotice(cachedAt: result.cachedAt),
+            Expanded(
+              child: RefreshIndicator(
+                onRefresh: _refresh,
+                child: GridView.builder(
+                  key: PageStorageKey('profile-photos-${widget.userId}'),
+                  padding: const EdgeInsets.all(3),
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 3,
+                    mainAxisSpacing: 3,
+                    crossAxisSpacing: 3,
+                  ),
+                  itemCount: items.length,
+                  itemBuilder: (context, index) => _PhotoTile(
+                    photo: items[index],
+                    index: index,
+                    onTap: () => showMediaViewer(
+                      context,
+                      urls: urls,
+                      initialIndex: index,
+                    ),
+                  ),
+                ),
+              ),
             ),
-            itemCount: items.length,
-            itemBuilder: (context, index) => _PhotoTile(
-              photo: items[index],
-              index: index,
-              onTap: () =>
-                  showMediaViewer(context, urls: urls, initialIndex: index),
-            ),
-          ),
+          ],
         );
       },
       loading: () => GridView.builder(
@@ -472,6 +506,38 @@ class _PostSkeleton extends StatelessWidget {
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surfaceContainerHigh,
         borderRadius: BorderRadius.circular(24),
+      ),
+    );
+  }
+}
+
+class _CachedNotice extends StatelessWidget {
+  const _CachedNotice({required this.cachedAt});
+
+  final DateTime? cachedAt;
+
+  @override
+  Widget build(BuildContext context) {
+    final time = cachedAt?.toLocal();
+    final suffix = time == null
+        ? ''
+        : ' from ${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+    return Semantics(
+      liveRegion: true,
+      child: Material(
+        color: Theme.of(context).colorScheme.secondaryContainer,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Row(
+            children: [
+              const Icon(Icons.cloud_off_outlined, size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text('Showing saved content$suffix. Pull to retry.'),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

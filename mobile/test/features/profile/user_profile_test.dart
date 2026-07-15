@@ -1,4 +1,6 @@
+import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kirenz_mobile/features/profile/data/cache/profile_cache.dart';
 import 'package:kirenz_mobile/features/profile/data/repositories/profile_repository.dart';
 import 'package:kirenz_mobile/features/profile/domain/entities/user_profile.dart';
 
@@ -48,4 +50,71 @@ void main() {
       'website': 'https://example.com',
     });
   });
+
+  test(
+    'opened profile falls back to cache only for transport failure',
+    () async {
+      final cache = _ProfileCache();
+      await cache.write('profile', 'user-1', _profileJson);
+      final offline = Dio();
+      offline.interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) => handler.reject(
+            DioException.connectionError(
+              requestOptions: options,
+              reason: 'offline',
+            ),
+          ),
+        ),
+      );
+
+      final result = await ProfileRepository(
+        offline,
+        cache,
+      ).getUserCached('user-1');
+
+      expect(result.isCached, isTrue);
+      expect(result.data.id, 'user-1');
+    },
+  );
+}
+
+const _profileJson = {
+  'id': 'user-1',
+  'email': 'person@example.com',
+  'username': 'person',
+  'displayName': 'Person Example',
+  'avatarUrl': null,
+  'coverPhotoUrl': null,
+  'bio': null,
+  'birthDate': null,
+  'gender': null,
+  'location': null,
+  'website': null,
+  'role': 'USER',
+  'emailVerified': true,
+  'createdAt': '2026-01-01T10:00:00Z',
+  'updatedAt': '2026-01-02T10:00:00Z',
+};
+
+class _ProfileCache implements ProfileCache {
+  Object? value;
+
+  @override
+  Future<ProfileCacheEntry?> read(String resource, String userId) async {
+    return value == null
+        ? null
+        : ProfileCacheEntry(value: value, updatedAt: DateTime.utc(2026, 7, 15));
+  }
+
+  @override
+  Future<void> write(String resource, String userId, Object? value) async {
+    this.value = value;
+  }
+
+  @override
+  Future<void> clear() async => value = null;
+
+  @override
+  Future<void> removeUser(String userId) async => value = null;
 }
