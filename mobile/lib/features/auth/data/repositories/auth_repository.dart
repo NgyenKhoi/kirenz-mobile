@@ -155,9 +155,11 @@ class AuthRepository {
     } on ApiException {
       rethrow;
     } on DioException catch (error) {
+      final body = _asMap(error.response?.data);
       throw ApiException(
         _errorMessage(error),
         statusCode: error.response?.statusCode,
+        fieldErrors: _fieldErrors(body),
       );
     }
   }
@@ -197,6 +199,19 @@ String _errorMessage(DioException error) {
     case DioExceptionType.unknown:
       return error.message ?? 'Network request failed.';
   }
+}
+
+Map<String, String> _fieldErrors(Map<String, dynamic> body) {
+  final candidates = [body['fieldErrors'], body['errors'], body['validationErrors']];
+  for (final candidate in candidates) {
+    if (candidate is Map) {
+      return candidate.map((key, value) {
+        final message = value is List && value.isNotEmpty ? value.first : value;
+        return MapEntry(key.toString(), message?.toString() ?? 'Invalid value');
+      });
+    }
+  }
+  return const {};
 }
 
 class RegisterResult {

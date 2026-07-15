@@ -5,14 +5,10 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../data/repositories/auth_repository.dart';
+import '../controllers/otp_controller.dart';
 
 class OtpVerificationScreen extends ConsumerStatefulWidget {
-  const OtpVerificationScreen({
-    this.email,
-    this.otpWasSent = false,
-    super.key,
-  });
+  const OtpVerificationScreen({this.email, this.otpWasSent = false, super.key});
 
   final String? email;
   final bool otpWasSent;
@@ -26,21 +22,20 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
   final _codeController = TextEditingController();
   final _codeFocusNode = FocusNode();
   Timer? _clock;
-  DateTime? _cooldownEndsAt;
-  bool _isVerifying = false;
-  bool _isSending = false;
   bool _autoSubmitted = false;
-  String? _errorMessage;
 
-  String get _email => widget.email?.trim() ?? '';
+  OtpArguments get _arguments => OtpArguments(
+    email: widget.email?.trim() ?? '',
+    otpWasSent: widget.otpWasSent,
+  );
 
   @override
   void initState() {
     super.initState();
-    if (widget.otpWasSent) {
-      _startCooldown();
-    }
     _codeController.addListener(_handleCodeChanged);
+    _clock = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) => _codeFocusNode.requestFocus());
   }
 
@@ -54,37 +49,28 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
     super.dispose();
   }
 
-  int get _cooldownSeconds {
-    final end = _cooldownEndsAt;
-    if (end == null) return 0;
-    final milliseconds = end.difference(DateTime.now()).inMilliseconds;
-    return milliseconds <= 0 ? 0 : (milliseconds / 1000).ceil();
-  }
-
-  void _startCooldown() {
-    _cooldownEndsAt = DateTime.now().add(const Duration(seconds: 60));
-    _clock?.cancel();
-    _clock = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (!mounted) return;
-      setState(() {});
-      if (_cooldownSeconds == 0) _clock?.cancel();
-    });
-  }
-
   void _handleCodeChanged() {
-    if (_errorMessage != null) setState(() => _errorMessage = null);
+    ref.read(otpControllerProvider(_arguments).notifier).clearError();
     if (_codeController.text.length < 6) _autoSubmitted = false;
-    if (_codeController.text.length == 6 && !_autoSubmitted && !_isVerifying) {
+    if (_codeController.text.length == 6 && !_autoSubmitted) {
       _autoSubmitted = true;
       _verify();
     }
+    if (mounted) setState(() {});
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final canVerify = _email.isNotEmpty && _codeController.text.length == 6;
-    final cooldown = _cooldownSeconds;
+    final otp = ref.watch(otpControllerProvider(_arguments));
+    final isVerifying = otp.pendingAction == OtpPendingAction.verify;
+    final isSending = otp.pendingAction == OtpPendingAction.resend;
+    final cooldown = otp.cooldownSeconds(DateTime.now());
+    final canVerify = otp.email.isNotEmpty && _codeController.text.length == 6;
+
+    ref.listen(otpControllerProvider(_arguments), (previous, next) {
+      if (next.verified && previous?.verified != true) context.go('/login');
+    });
 
     return Scaffold(
       appBar: AppBar(title: const Text('Verify email')),
@@ -98,11 +84,11 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
                 Text('Enter your code', style: theme.textTheme.headlineSmall),
                 const SizedBox(height: 8),
                 Text(
-                  _email.isEmpty
+                  otp.email.isEmpty
                       ? 'Return to registration and enter your email again.'
-                      : 'We use a six-digit code for ${_maskedEmail(_email)}. The code is valid for five minutes.',
+                      : 'We use a six-digit code for ${_maskedEmail(otp.email)}. The code is valid for five minutes.',
                 ),
-                if (!widget.otpWasSent) ...[
+                if (!otp.otpWasAutoSent) ...[
                   const SizedBox(height: 12),
                   Text(
                     'Automatic delivery was not confirmed. Tap Send code to try again.',
@@ -119,20 +105,22 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: List.generate(6, (index) {
                           final value = _codeController.text;
-                          final digit = index < value.length ? value[index] : '';
                           return Container(
-                            width: 44,
+                            width: 48,
                             height: 56,
                             alignment: Alignment.center,
                             decoration: BoxDecoration(
                               border: Border.all(
-                                color: _errorMessage == null
+                                color: otp.errorMessage == null
                                     ? theme.colorScheme.outline
                                     : theme.colorScheme.error,
                               ),
                               borderRadius: BorderRadius.circular(12),
                             ),
-                            child: Text(digit, style: theme.textTheme.headlineSmall),
+                            child: Text(
+                              index < value.length ? value[index] : '',
+                              style: theme.textTheme.headlineSmall,
+                            ),
                           );
                         }),
                       ),
@@ -142,8 +130,7 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
                           child: TextField(
                             controller: _codeController,
                             focusNode: _codeFocusNode,
-                            enabled: !_isVerifying,
-                            autofocus: true,
+                            enabled: !otp.isPending,
                             autofillHints: const [AutofillHints.oneTimeCode],
                             keyboardType: TextInputType.number,
                             inputFormatters: [
@@ -156,17 +143,17 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
                     ],
                   ),
                 ),
-                if (_errorMessage != null) ...[
+                if (otp.errorMessage != null) ...[
                   const SizedBox(height: 8),
                   Text(
-                    _errorMessage!,
+                    otp.errorMessage!,
                     style: TextStyle(color: theme.colorScheme.error),
                   ),
                 ],
                 const SizedBox(height: 24),
                 FilledButton(
-                  onPressed: canVerify && !_isVerifying ? _verify : null,
-                  child: _isVerifying
+                  onPressed: canVerify && !otp.isPending ? _verify : null,
+                  child: isVerifying
                       ? const SizedBox.square(
                           dimension: 20,
                           child: CircularProgressIndicator(strokeWidth: 2),
@@ -175,10 +162,10 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
                 ),
                 const SizedBox(height: 12),
                 TextButton(
-                  onPressed: _email.isEmpty || _isSending || cooldown > 0
+                  onPressed: otp.email.isEmpty || otp.isPending || cooldown > 0
                       ? null
                       : _sendCode,
-                  child: _isSending
+                  child: isSending
                       ? const Text('Sending…')
                       : Text(cooldown > 0 ? 'Resend in 00:${cooldown.toString().padLeft(2, '0')}' : 'Send code'),
                 ),
@@ -191,47 +178,22 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
   }
 
   Future<void> _verify() async {
-    if (_isVerifying || _codeController.text.length != 6 || _email.isEmpty) {
-      return;
-    }
-    setState(() {
-      _isVerifying = true;
-      _errorMessage = null;
-    });
-    try {
-      await ref.read(authRepositoryProvider).verifyOtp(
-            email: _email,
-            code: _codeController.text,
-          );
-      if (mounted) context.go('/login');
-    } catch (error) {
-      if (!mounted) return;
-      setState(() {
-        _errorMessage = error.toString();
-        _codeController.clear();
-        _autoSubmitted = false;
-      });
+    final success = await ref
+        .read(otpControllerProvider(_arguments).notifier)
+        .verify(_codeController.text);
+    if (!success && mounted) {
+      _codeController.clear();
+      _autoSubmitted = false;
       _codeFocusNode.requestFocus();
-    } finally {
-      if (mounted) setState(() => _isVerifying = false);
     }
   }
 
   Future<void> _sendCode() async {
-    setState(() {
-      _isSending = true;
-      _errorMessage = null;
-    });
-    try {
-      await ref.read(authRepositoryProvider).sendOtp(email: _email);
-      if (!mounted) return;
+    final sent = await ref.read(otpControllerProvider(_arguments).notifier).resend();
+    if (sent) {
       _codeController.clear();
-      _startCooldown();
-      setState(() {});
-    } catch (error) {
-      if (mounted) setState(() => _errorMessage = error.toString());
-    } finally {
-      if (mounted) setState(() => _isSending = false);
+      _autoSubmitted = false;
+      _codeFocusNode.requestFocus();
     }
   }
 }
