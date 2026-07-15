@@ -1,17 +1,25 @@
-# kirenz_mobile
+# Kirenz Mobile
 
-A new Flutter project.
+Run against the local API Gateway:
 
-## Getting Started
+```powershell
+flutter run --dart-define=API_BASE_URL=http://10.0.2.2:8080/api
+```
 
-This project is a starting point for a Flutter application.
+## Google OAuth configuration
 
-A few resources to get you started if this is your first Flutter project:
+Google login uses `google_sign_in` and sends only the returned Google ID token to `POST /api/auth/google`. Kirenz access and refresh tokens remain the app session credentials.
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+Android requires an OAuth web client registered for the application package and signing SHA fingerprints. Pass its client id with:
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+```powershell
+flutter run --dart-define=GOOGLE_SERVER_CLIENT_ID=your-web-client-id.apps.googleusercontent.com
+```
+
+iOS additionally requires its OAuth client id and reversed-client-id callback URL scheme in `ios/Runner/Info.plist` or `GoogleService-Info.plist`:
+
+```powershell
+flutter run --dart-define=GOOGLE_CLIENT_ID=your-ios-client-id.apps.googleusercontent.com --dart-define=GOOGLE_SERVER_CLIENT_ID=your-web-client-id.apps.googleusercontent.com
+```
+
+OAuth identifiers and signing fingerprints are environment-specific and are not committed to this repository.

@@ -7,6 +7,7 @@ import 'package:kirenz_mobile/features/auth/data/repositories/auth_repository.da
 import 'package:kirenz_mobile/features/auth/domain/entities/app_user.dart';
 import 'package:kirenz_mobile/features/auth/presentation/controllers/session_controller.dart';
 import 'package:kirenz_mobile/features/profile/data/repositories/profile_repository.dart';
+import 'package:kirenz_mobile/features/profile/data/cache/profile_cache.dart';
 import 'package:kirenz_mobile/features/profile/domain/entities/user_profile.dart';
 import 'package:kirenz_mobile/features/profile/presentation/controllers/profile_media_controller.dart';
 
@@ -81,9 +82,24 @@ ProviderContainer _container(_ProfileRepository repository) {
     overrides: [
       authRepositoryProvider.overrideWithValue(_AuthRepository()),
       profileRepositoryProvider.overrideWithValue(repository),
+      profileCacheProvider.overrideWithValue(_MemoryCache()),
       profileImageServiceProvider.overrideWithValue(_ImageService()),
     ],
   );
+}
+
+class _MemoryCache implements ProfileCache {
+  @override
+  Future<ProfileCacheEntry?> read(String resource, String userId) async => null;
+
+  @override
+  Future<void> write(String resource, String userId, Object? value) async {}
+
+  @override
+  Future<void> clear() async {}
+
+  @override
+  Future<void> removeUser(String userId) async {}
 }
 
 class _ImageService extends ProfileImageService {
@@ -107,6 +123,11 @@ class _ProfileRepository extends ProfileRepository {
 
   @override
   Future<UserProfile> getCurrentUser() async => _profile();
+
+  @override
+  Future<CachedProfileResource<UserProfile>> getCurrentUserCached() async {
+    return CachedProfileResource(data: await getCurrentUser(), isCached: false);
+  }
 
   @override
   Future<UserProfile> uploadAvatar(

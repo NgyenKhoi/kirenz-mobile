@@ -126,6 +126,7 @@ class _ProfileContent extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final cached = ref.watch(profileCacheStatusProvider(user.id));
     final avatarMedia = isCurrentUser
         ? ref.watch(profileMediaControllerProvider(ProfileMediaTarget.avatar))
         : const ProfileMediaState();
@@ -138,6 +139,8 @@ class _ProfileContent extends ConsumerWidget {
               physics: const AlwaysScrollableScrollPhysics(),
               child: Column(
                 children: [
+                  if (cached != null)
+                    _ProfileCachedNotice(updatedAt: cached.updatedAt),
                   _ProfileHeader(
                     user: user,
                     isCurrentUser: isCurrentUser,
@@ -189,6 +192,37 @@ class _ProfileContent extends ConsumerWidget {
           ProfilePhotosTab(userId: user.id),
           ProfileFriendsTab(userId: user.id),
         ],
+      ),
+    );
+  }
+}
+
+class _ProfileCachedNotice extends StatelessWidget {
+  const _ProfileCachedNotice({required this.updatedAt});
+
+  final DateTime updatedAt;
+
+  @override
+  Widget build(BuildContext context) {
+    final time = updatedAt.toLocal();
+    return Semantics(
+      liveRegion: true,
+      child: Material(
+        color: Theme.of(context).colorScheme.secondaryContainer,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Row(
+            children: [
+              const Icon(Icons.cloud_off_outlined, size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Showing saved profile from ${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}. Pull to retry.',
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -473,7 +507,11 @@ class _Detail extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       mainAxisSize: MainAxisSize.min,
-      children: [Icon(icon, size: 18), const SizedBox(width: 5), Text(label)],
+      children: [
+        Icon(icon, size: 18),
+        const SizedBox(width: 5),
+        Flexible(child: Text(label)),
+      ],
     );
   }
 }

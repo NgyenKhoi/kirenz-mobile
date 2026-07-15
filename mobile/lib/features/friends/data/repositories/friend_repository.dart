@@ -66,6 +66,10 @@ class FriendRepository {
       throw ApiException(
         _errorMessage(error),
         statusCode: error.response?.statusCode,
+        kind: apiFailureKindForResponse(
+          hasResponse: error.response != null,
+          statusCode: error.response?.statusCode,
+        ),
       );
     }
   }
@@ -109,6 +113,10 @@ class FriendRepository {
       throw ApiException(
         _errorMessage(error),
         statusCode: error.response?.statusCode,
+        kind: apiFailureKindForResponse(
+          hasResponse: error.response != null,
+          statusCode: error.response?.statusCode,
+        ),
       );
     }
   }
@@ -128,6 +136,10 @@ class FriendRepository {
       throw ApiException(
         _errorMessage(error),
         statusCode: error.response?.statusCode,
+        kind: apiFailureKindForResponse(
+          hasResponse: error.response != null,
+          statusCode: error.response?.statusCode,
+        ),
       );
     }
   }

@@ -5,6 +5,7 @@ import '../../../friends/presentation/controllers/friends_controller.dart';
 import '../../../privacy/presentation/controllers/privacy_controller.dart';
 import '../../../profile/data/repositories/profile_content_repository.dart';
 import '../../../profile/data/repositories/profile_repository.dart';
+import '../../../profile/data/cache/profile_cache.dart';
 import '../../data/services/google_auth_client.dart';
 
 final sessionCleanupProvider = Provider<SessionCleanup>((ref) {
@@ -12,7 +13,7 @@ final sessionCleanupProvider = Provider<SessionCleanup>((ref) {
     disconnectGoogle: ref.watch(googleAuthClientProvider).disconnect,
     disconnectRealtime: () async {},
     clearPrivateDrafts: () async {},
-    clearUserCache: () async {},
+    clearUserCache: ref.watch(profileCacheProvider).clear,
     clearAccountState: () {
       ref.invalidate(currentUserProfileProvider);
       ref.invalidate(userProfileProvider);
