@@ -30,13 +30,23 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final colors = theme.colorScheme;
     final session = ref.watch(sessionControllerProvider);
     final isBusy = session.status == SessionStatus.authenticating;
+    final isGooglePending =
+        session.pendingAction == AuthPendingAction.googleLogin;
 
     ref.listen(sessionControllerProvider, (previous, next) {
-      final message = next.errorMessage;
-      if (message != null && message.isNotEmpty) {
-        ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(SnackBar(content: Text(message)));
+      final otpEmail = next.otpEmail;
+      if (otpEmail != null && otpEmail != previous?.otpEmail) {
+        final redirect = GoRouterState.of(
+          context,
+        ).uri.queryParameters['redirect'];
+        final parameters = <String, String>{
+          'email': otpEmail,
+          'otpSent': 'false',
+        };
+        if (redirect != null) parameters['redirect'] = redirect;
+        context.go(
+          Uri(path: '/verify-otp', queryParameters: parameters).toString(),
+        );
       }
     });
 
@@ -99,16 +109,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             keyboardType: TextInputType.emailAddress,
                             autofillHints: const [AutofillHints.email],
                             textInputAction: TextInputAction.next,
-                            decoration: const InputDecoration(
+                            onChanged: (_) => ref
+                                .read(sessionControllerProvider.notifier)
+                                .clearFieldError('email'),
+                            decoration: InputDecoration(
                               labelText: 'Email',
-                              prefixIcon: Icon(Icons.mail_outline_rounded),
+                              prefixIcon: const Icon(
+                                Icons.mail_outline_rounded,
+                              ),
                             ),
                             validator: (value) {
                               if (value == null || value.trim().isEmpty) {
                                 return 'Email is required';
                               }
 
-                              return null;
+                              return session.fieldErrors['email'];
                             },
                           ),
                           const SizedBox(height: 14),
@@ -119,9 +134,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             autofillHints: const [AutofillHints.password],
                             textInputAction: TextInputAction.done,
                             onFieldSubmitted: (_) => isBusy ? null : _submit(),
+                            onChanged: (_) => ref
+                                .read(sessionControllerProvider.notifier)
+                                .clearFieldError('password'),
                             decoration: InputDecoration(
                               labelText: 'Password',
-                              prefixIcon: const Icon(Icons.lock_outline_rounded),
+                              prefixIcon: const Icon(
+                                Icons.lock_outline_rounded,
+                              ),
                               suffixIcon: IconButton(
                                 tooltip: _obscurePassword
                                     ? 'Show password'
@@ -141,9 +161,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                 return 'Password is required';
                               }
 
-                              return null;
+                              return session.fieldErrors['password'];
                             },
                           ),
+                          if (session.errorMessage != null) ...[
+                            const SizedBox(height: 12),
+                            Text(
+                              session.errorMessage!,
+                              style: TextStyle(color: colors.error),
+                              semanticsLabel:
+                                  'Sign in error: ${session.errorMessage}',
+                            ),
+                          ],
                           const SizedBox(height: 22),
                           FilledButton(
                             onPressed: isBusy ? null : _submit,
@@ -159,13 +188,26 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           ),
                           const SizedBox(height: 12),
                           OutlinedButton.icon(
-                            onPressed: null,
+                            onPressed: isBusy
+                                ? null
+                                : () => ref
+                                      .read(sessionControllerProvider.notifier)
+                                      .loginWithGoogle(),
                             icon: const Icon(Icons.g_mobiledata_rounded),
-                            label: const Text('Continue with Google'),
+                            label: isGooglePending
+                                ? const SizedBox.square(
+                                    dimension: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Text('Continue with Google'),
                           ),
                           const SizedBox(height: 10),
                           TextButton(
-                            onPressed: isBusy ? null : () => context.go('/register'),
+                            onPressed: isBusy
+                                ? null
+                                : () => context.go('/register'),
                             child: const Text('Create account'),
                           ),
                         ],
@@ -186,11 +228,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       return;
     }
 
-    await ref
+    final success = await ref
         .read(sessionControllerProvider.notifier)
         .login(
           email: _emailController.text.trim(),
           password: _passwordController.text,
         );
+    if (!success && mounted) _formKey.currentState?.validate();
   }
 }

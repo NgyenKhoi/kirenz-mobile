@@ -1,4 +1,4 @@
-﻿name: kirenz_mobile
+name: kirenz_mobile
 description: Kirenz mobile application.
 publish_to: 'none'
 version: 1.0.0+1
@@ -21,6 +21,7 @@ dependencies:
   json_annotation: ^4.9.0
   shared_preferences: ^2.5.3
   device_preview: ^1.2.0
+  google_sign_in: 7.2.0
 
 dev_dependencies:
   build_runner: ^2.6.0

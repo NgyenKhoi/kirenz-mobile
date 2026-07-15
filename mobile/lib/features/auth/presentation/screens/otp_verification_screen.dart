@@ -8,10 +8,16 @@ import 'package:go_router/go_router.dart';
 import '../controllers/otp_controller.dart';
 
 class OtpVerificationScreen extends ConsumerStatefulWidget {
-  const OtpVerificationScreen({this.email, this.otpWasSent = false, super.key});
+  const OtpVerificationScreen({
+    this.email,
+    this.otpWasSent = false,
+    this.intendedDestination,
+    super.key,
+  });
 
   final String? email;
   final bool otpWasSent;
+  final String? intendedDestination;
 
   @override
   ConsumerState<OtpVerificationScreen> createState() =>
@@ -36,7 +42,9 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
     _clock = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() {});
     });
-    WidgetsBinding.instance.addPostFrameCallback((_) => _codeFocusNode.requestFocus());
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _codeFocusNode.requestFocus(),
+    );
   }
 
   @override
@@ -69,7 +77,12 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
     final canVerify = otp.email.isNotEmpty && _codeController.text.length == 6;
 
     ref.listen(otpControllerProvider(_arguments), (previous, next) {
-      if (next.verified && previous?.verified != true) context.go('/login');
+      if (next.verified && previous?.verified != true) {
+        final parameters = <String, String>{};
+        final intended = widget.intendedDestination;
+        if (intended != null) parameters['redirect'] = intended;
+        context.go(Uri(path: '/login', queryParameters: parameters).toString());
+      }
     });
 
     return Scaffold(
@@ -167,7 +180,11 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
                       : _sendCode,
                   child: isSending
                       ? const Text('Sending…')
-                      : Text(cooldown > 0 ? 'Resend in 00:${cooldown.toString().padLeft(2, '0')}' : 'Send code'),
+                      : Text(
+                          cooldown > 0
+                              ? 'Resend in 00:${cooldown.toString().padLeft(2, '0')}'
+                              : 'Send code',
+                        ),
                 ),
               ],
             ),
@@ -182,14 +199,20 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
         .read(otpControllerProvider(_arguments).notifier)
         .verify(_codeController.text);
     if (!success && mounted) {
-      _codeController.clear();
-      _autoSubmitted = false;
-      _codeFocusNode.requestFocus();
+      final failure = ref.read(otpControllerProvider(_arguments)).failureKind;
+      if (failure == OtpFailureKind.invalidCode ||
+          failure == OtpFailureKind.expired) {
+        _codeController.clear();
+        _autoSubmitted = false;
+        _codeFocusNode.requestFocus();
+      }
     }
   }
 
   Future<void> _sendCode() async {
-    final sent = await ref.read(otpControllerProvider(_arguments).notifier).resend();
+    final sent = await ref
+        .read(otpControllerProvider(_arguments).notifier)
+        .resend();
     if (sent) {
       _codeController.clear();
       _autoSubmitted = false;
