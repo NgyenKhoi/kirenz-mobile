@@ -37,10 +37,20 @@ final routerProvider = Provider<GoRouter>((ref) {
       }
 
       if (!session.isAuthenticated) {
-        return isAuthRoute ? null : '/login';
+        if (isAuthRoute) return null;
+        final intended = Uri.encodeComponent(state.uri.toString());
+        return '/login?redirect=$intended';
       }
 
       if (isAuthRoute || isSplash) {
+        final intended = state.uri.queryParameters['redirect'];
+        if (intended != null &&
+            intended.startsWith('/') &&
+            !intended.startsWith('/login') &&
+            !intended.startsWith('/register') &&
+            !intended.startsWith('/verify-otp')) {
+          return intended;
+        }
         return '/home';
       }
 
@@ -61,6 +71,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => OtpVerificationScreen(
           email: state.uri.queryParameters['email'],
           otpWasSent: state.uri.queryParameters['otpSent'] == 'true',
+          intendedDestination: state.uri.queryParameters['redirect'],
         ),
       ),
       StatefulShellRoute.indexedStack(

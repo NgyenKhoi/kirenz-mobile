@@ -30,6 +30,8 @@ class OtpArguments {
 
 enum OtpPendingAction { verify, resend }
 
+enum OtpFailureKind { invalidCode, expired, rateLimited, transport, other }
+
 class OtpState {
   const OtpState({
     required this.email,
@@ -38,6 +40,7 @@ class OtpState {
     this.pendingAction,
     this.errorMessage,
     this.verified = false,
+    this.failureKind,
   });
 
   final String email;
@@ -46,6 +49,7 @@ class OtpState {
   final OtpPendingAction? pendingAction;
   final String? errorMessage;
   final bool verified;
+  final OtpFailureKind? failureKind;
 
   bool get isPending => pendingAction != null;
 
@@ -65,6 +69,8 @@ class OtpState {
     bool clearError = false,
     bool? verified,
     bool? otpWasAutoSent,
+    OtpFailureKind? failureKind,
+    bool clearFailure = false,
   }) {
     return OtpState(
       email: email,
@@ -75,6 +81,7 @@ class OtpState {
       pendingAction: clearPending ? null : pendingAction ?? this.pendingAction,
       errorMessage: clearError ? null : errorMessage ?? this.errorMessage,
       verified: verified ?? this.verified,
+      failureKind: clearFailure ? null : failureKind ?? this.failureKind,
     );
   }
 }
@@ -104,11 +111,13 @@ class OtpController extends StateNotifier<OtpState> {
   }
 
   Future<bool> verify(String code) async {
-    if (state.isPending || state.email.isEmpty || code.length != 6)
+    if (state.isPending || state.email.isEmpty || code.length != 6) {
       return false;
+    }
     state = state.copyWith(
       pendingAction: OtpPendingAction.verify,
       clearError: true,
+      clearFailure: true,
     );
     try {
       await _repository.verifyOtp(email: state.email, code: code);
@@ -116,6 +125,7 @@ class OtpController extends StateNotifier<OtpState> {
         verified: true,
         clearPending: true,
         clearError: true,
+        clearFailure: true,
       );
       return true;
     } on ApiException catch (error) {
@@ -125,13 +135,16 @@ class OtpController extends StateNotifier<OtpState> {
       state = state.copyWith(
         verified: alreadyVerified,
         errorMessage: alreadyVerified ? null : error.message,
+        failureKind: alreadyVerified ? null : _classifyFailure(error),
         clearError: alreadyVerified,
+        clearFailure: alreadyVerified,
         clearPending: true,
       );
       return alreadyVerified;
     } catch (error) {
       state = state.copyWith(
         errorMessage: error.toString(),
+        failureKind: OtpFailureKind.other,
         clearPending: true,
       );
       return false;
@@ -147,6 +160,7 @@ class OtpController extends StateNotifier<OtpState> {
     state = state.copyWith(
       pendingAction: OtpPendingAction.resend,
       clearError: true,
+      clearFailure: true,
     );
     try {
       await _repository.sendOtp(email: state.email);
@@ -155,14 +169,40 @@ class OtpController extends StateNotifier<OtpState> {
         otpWasAutoSent: true,
         clearPending: true,
         clearError: true,
+        clearFailure: true,
       );
       return true;
     } catch (error) {
       state = state.copyWith(
         errorMessage: error.toString(),
+        failureKind: error is ApiException
+            ? _classifyFailure(error)
+            : OtpFailureKind.other,
         clearPending: true,
       );
       return false;
     }
+  }
+
+  OtpFailureKind _classifyFailure(ApiException error) {
+    final message = error.message.toLowerCase();
+    if (message.contains('expired')) return OtpFailureKind.expired;
+    if (error.statusCode == 429 ||
+        message.contains('rate limit') ||
+        message.contains('too many') ||
+        message.contains('please wait')) {
+      return OtpFailureKind.rateLimited;
+    }
+    if (error.statusCode == null &&
+        (message.contains('cannot reach') ||
+            message.contains('network') ||
+            message.contains('connection') ||
+            message.contains('timeout'))) {
+      return OtpFailureKind.transport;
+    }
+    if (message.contains('invalid') || message.contains('incorrect')) {
+      return OtpFailureKind.invalidCode;
+    }
+    return OtpFailureKind.other;
   }
 }

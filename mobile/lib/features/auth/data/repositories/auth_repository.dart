@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -23,8 +25,14 @@ class AuthRepository {
   final TokenStorage _tokenStorage;
 
   Future<AppUser?> restoreSession() async {
+    final accessToken = await _tokenStorage.readAccessToken();
     final refreshToken = await _tokenStorage.readRefreshToken();
+    if (isAccessTokenUsable(accessToken)) {
+      final storedUser = await _storedUserFallback();
+      if (storedUser != null) return storedUser;
+    }
     if (refreshToken == null || refreshToken.isEmpty) {
+      await _tokenStorage.clear();
       return null;
     }
 
@@ -32,11 +40,7 @@ class AuthRepository {
       final result = await refresh(refreshToken);
       await _saveResult(result);
       return result.user;
-    } on ApiException catch (error) {
-      if (error.statusCode == null) {
-        return _storedUserFallback();
-      }
-
+    } on ApiException {
       await _tokenStorage.clear();
       return null;
     }
@@ -54,6 +58,15 @@ class AuthRepository {
     return result.user;
   }
 
+  Future<AppUser> loginWithGoogle({required String idToken}) async {
+    final result = await _postAuthResult(
+      '/auth/google',
+      data: {'idToken': idToken},
+    );
+    await _saveResult(result);
+    return result.user;
+  }
+
   Future<RegisterResult> register({
     required String displayName,
     required String username,
@@ -62,12 +75,12 @@ class AuthRepository {
   }) async {
     final response = await _post(
       '/auth/register',
-      data: {
-        'displayName': displayName,
-        'username': username,
-        'email': email,
-        'password': password,
-      },
+      data: buildRegisterPayload(
+        displayName: displayName,
+        username: username,
+        email: email,
+        password: password,
+      ),
     );
     final data = _asMap(response['data'] ?? response);
     return RegisterResult(
@@ -165,6 +178,45 @@ class AuthRepository {
   }
 }
 
+bool isAccessTokenUsable(String? token, {DateTime Function()? now}) {
+  if (token == null || token.isEmpty) return false;
+  final parts = token.split('.');
+  if (parts.length != 3) return false;
+  try {
+    final payload = jsonDecode(
+      utf8.decode(base64Url.decode(base64Url.normalize(parts[1]))),
+    );
+    if (payload is! Map) return false;
+    final expiry = payload['exp'];
+    final expirySeconds = expiry is num
+        ? expiry.toInt()
+        : int.tryParse(expiry?.toString() ?? '');
+    if (expirySeconds == null) return false;
+    final current = (now ?? DateTime.now)().add(const Duration(seconds: 30));
+    return DateTime.fromMillisecondsSinceEpoch(
+      expirySeconds * 1000,
+      isUtc: true,
+    ).isAfter(current.toUtc());
+  } on FormatException {
+    return false;
+  }
+}
+
+Map<String, dynamic> buildRegisterPayload({
+  required String displayName,
+  required String username,
+  required String email,
+  required String password,
+}) {
+  final normalizedDisplayName = displayName.trim();
+  return {
+    if (normalizedDisplayName.isNotEmpty) 'displayName': normalizedDisplayName,
+    'username': username.trim(),
+    'email': email.trim(),
+    'password': password,
+  };
+}
+
 Map<String, dynamic> _asMap(Object? value) {
   if (value is Map<String, dynamic>) {
     return value;
@@ -202,7 +254,11 @@ String _errorMessage(DioException error) {
 }
 
 Map<String, String> _fieldErrors(Map<String, dynamic> body) {
-  final candidates = [body['fieldErrors'], body['errors'], body['validationErrors']];
+  final candidates = [
+    body['fieldErrors'],
+    body['errors'],
+    body['validationErrors'],
+  ];
   for (final candidate in candidates) {
     if (candidate is Map) {
       return candidate.map((key, value) {

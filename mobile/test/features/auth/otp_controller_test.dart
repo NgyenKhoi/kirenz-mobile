@@ -16,13 +16,20 @@ void main() {
     );
 
     expect(controller.state.email, 'user@example.com');
-    expect(controller.state.cooldownEndsAt, now.add(const Duration(seconds: 60)));
+    expect(
+      controller.state.cooldownEndsAt,
+      now.add(const Duration(seconds: 60)),
+    );
     expect(controller.state.cooldownSeconds(now), 60);
-    expect(controller.state.cooldownSeconds(now.add(const Duration(seconds: 61))), 0);
+    expect(
+      controller.state.cooldownSeconds(now.add(const Duration(seconds: 61))),
+      0,
+    );
   });
 
   test('only one concurrent verification reaches the repository', () async {
-    final repository = _FakeAuthRepository()..verifyCompleter = Completer<void>();
+    final repository = _FakeAuthRepository()
+      ..verifyCompleter = Completer<void>();
     final controller = OtpController(
       repository,
       email: 'user@example.com',
@@ -42,7 +49,9 @@ void main() {
   test('failed resend remains available and keeps backend message', () async {
     final now = DateTime(2026, 7, 15, 12);
     final repository = _FakeAuthRepository(
-      resendError: const ApiException('Please wait before requesting another code.'),
+      resendError: const ApiException(
+        'Please wait before requesting another code.',
+      ),
     );
     final controller = OtpController(
       repository,
@@ -52,7 +61,10 @@ void main() {
     );
 
     expect(await controller.resend(), isFalse);
-    expect(controller.state.errorMessage, 'Please wait before requesting another code.');
+    expect(
+      controller.state.errorMessage,
+      'Please wait before requesting another code.',
+    );
     expect(controller.state.cooldownSeconds(now), 0);
     expect(controller.state.pendingAction, isNull);
   });
@@ -70,6 +82,22 @@ void main() {
     expect(controller.state.verified, isTrue);
     expect(controller.state.errorMessage, isNull);
   });
+
+  test(
+    'transport failure is classified so the entered code can be retried',
+    () async {
+      final controller = OtpController(
+        _FakeAuthRepository(
+          verifyError: const ApiException('Network connection timed out.'),
+        ),
+        email: 'user@example.com',
+        otpWasSent: false,
+      );
+
+      expect(await controller.verify('123456'), isFalse);
+      expect(controller.state.failureKind, OtpFailureKind.transport);
+    },
+  );
 }
 
 class _FakeAuthRepository implements AuthRepository {

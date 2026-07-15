@@ -8,4 +8,9 @@ class AppConfig {
 
   static const chatWebSocketPath = '/ws/chat';
   static const notificationWebSocketPath = '/ws/notifications';
+
+  static const googleClientId = String.fromEnvironment('GOOGLE_CLIENT_ID');
+  static const googleServerClientId = String.fromEnvironment(
+    'GOOGLE_SERVER_CLIENT_ID',
+  );
 }
