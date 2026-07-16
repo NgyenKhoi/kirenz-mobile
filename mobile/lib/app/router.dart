@@ -8,6 +8,7 @@ import '../features/auth/presentation/screens/otp_verification_screen.dart';
 import '../features/auth/presentation/screens/register_screen.dart';
 import '../features/auth/presentation/screens/splash_screen.dart';
 import '../features/chat/presentation/screens/chat_screen.dart';
+import '../features/chat/presentation/screens/conversation_screen.dart';
 import '../features/blocks/presentation/screens/blocked_users_screen.dart';
 import '../features/explore/presentation/screens/explore_screen.dart';
 import '../features/feed/presentation/screens/feed_screen.dart';
@@ -108,6 +109,15 @@ final routerProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: '/chat',
                 builder: (context, state) => const ChatScreen(),
+                routes: [
+                  GoRoute(
+                    path: ':conversationId',
+                    builder: (context, state) => ConversationScreen(
+                      conversationId:
+                          state.pathParameters['conversationId'] ?? '',
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
