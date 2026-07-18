@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/repositories/conversation_repository.dart';
+import '../../data/cache/conversation_cache.dart';
 import '../../domain/entities/conversation.dart';
 
 final conversationControllerProvider =
@@ -8,25 +11,38 @@ final conversationControllerProvider =
       ConversationController.new,
     );
 
+final conversationCacheStatusProvider = StateProvider<DateTime?>((ref) => null);
+final conversationPendingActionsProvider = StateProvider<Set<String>>(
+  (ref) => const {},
+);
+
 class ConversationController extends AsyncNotifier<List<Conversation>> {
   final Set<String> _pendingDirect = {};
+  final Set<String> _pendingConversations = {};
   bool _creatingGroup = false;
 
   @override
   Future<List<Conversation>> build() async {
-    return _sorted(
-      await ref.watch(conversationRepositoryProvider).getConversations(),
-    );
+    final result = await ref
+        .watch(conversationRepositoryProvider)
+        .getConversationsCached();
+    ref.read(conversationCacheStatusProvider.notifier).state = result.isCached
+        ? result.cachedAt
+        : null;
+    return _sorted(result.data);
   }
 
   Future<void> refresh() async {
     final previous = state.value;
     state = const AsyncLoading<List<Conversation>>().copyWithPrevious(state);
     state = await AsyncValue.guard(() async {
-      final rows = await ref
+      final result = await ref
           .read(conversationRepositoryProvider)
-          .getConversations();
-      return _sorted(rows);
+          .getConversationsCached();
+      ref.read(conversationCacheStatusProvider.notifier).state = result.isCached
+          ? result.cachedAt
+          : null;
+      return _sorted(result.data);
     });
     if (state.hasError && previous != null) {
       state = AsyncValue<List<Conversation>>.error(
@@ -75,6 +91,124 @@ class ConversationController extends AsyncNotifier<List<Conversation>> {
     }
   }
 
+  Conversation? byId(String conversationId) => state.value
+      ?.where((conversation) => conversation.id == conversationId)
+      .firstOrNull;
+
+  Future<Conversation> loadById(String conversationId) async {
+    final existing = byId(conversationId);
+    if (existing != null) return existing;
+    final conversation = await ref
+        .read(conversationRepositoryProvider)
+        .getConversation(conversationId);
+    _replace(conversation);
+    return conversation;
+  }
+
+  Future<Conversation> renameGroup(String conversationId, String name) =>
+      _mutateConversation(
+        'rename:$conversationId',
+        () => ref
+            .read(conversationRepositoryProvider)
+            .renameGroup(conversationId, name),
+      );
+
+  Future<Conversation> addMember(String conversationId, String userId) =>
+      _mutateConversation(
+        'add:$conversationId:$userId',
+        () => ref
+            .read(conversationRepositoryProvider)
+            .addMember(conversationId, userId),
+      );
+
+  Future<Conversation> kickMember(String conversationId, String userId) =>
+      _mutateConversation(
+        'kick:$conversationId:$userId',
+        () => ref
+            .read(conversationRepositoryProvider)
+            .kickMember(conversationId, userId),
+      );
+
+  Future<Conversation> makeAdmin(String conversationId, String userId) =>
+      _mutateConversation(
+        'admin:$conversationId:$userId',
+        () => ref
+            .read(conversationRepositoryProvider)
+            .makeAdmin(conversationId, userId),
+      );
+
+  Future<Conversation> updateNickname(
+    String conversationId,
+    String userId,
+    String nickname,
+  ) => _mutateConversation(
+    'nickname:$conversationId:$userId',
+    () => ref
+        .read(conversationRepositoryProvider)
+        .updateNickname(conversationId, userId, nickname),
+  );
+
+  Future<void> leaveGroup(String conversationId) async {
+    await _mutateVoid('leave:$conversationId', () async {
+      await ref.read(conversationRepositoryProvider).leaveGroup(conversationId);
+      _remove(conversationId);
+    });
+  }
+
+  Future<void> deleteGroup(String conversationId) async {
+    await _mutateVoid('delete:$conversationId', () async {
+      await ref
+          .read(conversationRepositoryProvider)
+          .deleteGroup(conversationId);
+      _remove(conversationId);
+    });
+  }
+
+  Future<Conversation> _mutateConversation(
+    String key,
+    Future<Conversation> Function() request,
+  ) => _withConversationPending(key, () async {
+    final conversation = await request();
+    _replace(conversation);
+    return conversation;
+  });
+
+  Future<void> _mutateVoid(String key, Future<void> Function() action) =>
+      _withConversationPending<void>(key, action);
+
+  Future<T> _withConversationPending<T>(
+    String key,
+    Future<T> Function() action,
+  ) async {
+    final conversationId = key.split(':')[1];
+    if (!_pendingConversations.add(conversationId)) {
+      throw StateError('Another action for this conversation is pending.');
+    }
+    try {
+      return await _withPending(key, action);
+    } finally {
+      _pendingConversations.remove(conversationId);
+    }
+  }
+
+  Future<T> _withPending<T>(String key, Future<T> Function() action) async {
+    final pending = ref.read(conversationPendingActionsProvider);
+    if (pending.contains(key)) {
+      throw StateError('This conversation action is already pending.');
+    }
+    ref.read(conversationPendingActionsProvider.notifier).state = {
+      ...pending,
+      key,
+    };
+    try {
+      return await action();
+    } finally {
+      ref.read(conversationPendingActionsProvider.notifier).state = {
+        ...ref.read(conversationPendingActionsProvider),
+      }..remove(key);
+    }
+  }
+
   void _replace(Conversation conversation) {
     final rows = [...?state.value];
     final index = rows.indexWhere((item) => item.id == conversation.id);
@@ -84,6 +218,22 @@ class ConversationController extends AsyncNotifier<List<Conversation>> {
       rows[index] = conversation;
     }
     state = AsyncData(_sorted(rows));
+    unawaited(_writeCache(state.requireValue));
+  }
+
+  Future<void> _writeCache(List<Conversation> rows) async {
+    try {
+      await ref.read(conversationCacheProvider).write(rows);
+    } on Object {
+      return;
+    }
+  }
+
+  void _remove(String conversationId) {
+    final rows = [...?state.value]
+      ..removeWhere((conversation) => conversation.id == conversationId);
+    state = AsyncData(_sorted(rows));
+    unawaited(_writeCache(state.requireValue));
   }
 }
 

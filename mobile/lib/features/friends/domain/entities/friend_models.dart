@@ -126,6 +126,7 @@ class UserSearchResult {
     required this.avatarUrl,
     required this.bio,
     required this.relationshipStatus,
+    required this.allowDirectMessages,
   });
 
   factory UserSearchResult.fromJson(Map<String, dynamic> json) =>
@@ -138,6 +139,9 @@ class UserSearchResult {
         relationshipStatus: relationshipStatusFromJson(
           json['relationshipStatus'],
         ),
+        allowDirectMessages: json.containsKey('allowDirectMessages')
+            ? json['allowDirectMessages'] == true
+            : null,
       );
 
   final String id;
@@ -146,6 +150,7 @@ class UserSearchResult {
   final String? avatarUrl;
   final String? bio;
   final RelationshipStatus relationshipStatus;
+  final bool? allowDirectMessages;
 
   String get resolvedName => _resolvedName(displayName, username);
 }

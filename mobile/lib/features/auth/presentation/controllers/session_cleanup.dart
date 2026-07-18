@@ -6,6 +6,8 @@ import '../../../privacy/presentation/controllers/privacy_controller.dart';
 import '../../../profile/data/repositories/profile_content_repository.dart';
 import '../../../profile/data/repositories/profile_repository.dart';
 import '../../../profile/data/cache/profile_cache.dart';
+import '../../../chat/data/cache/conversation_cache.dart';
+import '../../../chat/presentation/controllers/conversation_controller.dart';
 import '../../data/services/google_auth_client.dart';
 
 final sessionCleanupProvider = Provider<SessionCleanup>((ref) {
@@ -13,7 +15,10 @@ final sessionCleanupProvider = Provider<SessionCleanup>((ref) {
     disconnectGoogle: ref.watch(googleAuthClientProvider).disconnect,
     disconnectRealtime: () async {},
     clearPrivateDrafts: () async {},
-    clearUserCache: ref.watch(profileCacheProvider).clear,
+    clearUserCache: () async {
+      await ref.watch(profileCacheProvider).clear();
+      await ref.watch(conversationCacheProvider).clear();
+    },
     clearAccountState: () {
       ref.invalidate(currentUserProfileProvider);
       ref.invalidate(userProfileProvider);
@@ -29,6 +34,8 @@ final sessionCleanupProvider = Provider<SessionCleanup>((ref) {
       ref.invalidate(userPrivacyProvider);
       ref.invalidate(blockedUsersProvider);
       ref.invalidate(blockStatusProvider);
+      ref.invalidate(conversationControllerProvider);
+      ref.invalidate(conversationCacheStatusProvider);
     },
   );
 });
