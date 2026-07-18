@@ -30,6 +30,16 @@ class ConversationParticipant {
   final String? nickname;
   final bool admin;
 
+  Map<String, dynamic> toJson() => {
+    'userId': userId,
+    'username': username,
+    'displayName': displayName,
+    'avatarUrl': avatarUrl,
+    'allowDirectMessages': allowDirectMessages,
+    'nickname': nickname,
+    'admin': admin,
+  };
+
   String get resolvedName {
     for (final value in [nickname, displayName, username]) {
       if (value != null && value.trim().isNotEmpty) return value.trim();
@@ -64,6 +74,15 @@ class ConversationLastMessage {
   final String senderName;
   final String type;
   final DateTime? sentAt;
+
+  Map<String, dynamic> toJson() => {
+    'messageId': messageId,
+    'content': content,
+    'senderId': senderId,
+    'senderName': senderName,
+    'type': type,
+    'sentAt': sentAt?.toIso8601String(),
+  };
 }
 
 class Conversation {
@@ -113,6 +132,19 @@ class Conversation {
   final DateTime? updatedAt;
   final int unreadCount;
 
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'type': type == ConversationType.group ? 'GROUP' : 'DIRECT',
+    'name': name,
+    'participants': participants.map((item) => item.toJson()).toList(),
+    'adminIds': adminIds.toList(),
+    'currentUserAdmin': currentUserAdmin,
+    'lastMessage': lastMessage?.toJson(),
+    'createdAt': createdAt?.toIso8601String(),
+    'updatedAt': updatedAt?.toIso8601String(),
+    'unreadCount': unreadCount,
+  };
+
   String titleFor(String? currentUserId) {
     if (type == ConversationType.group) {
       final value = name?.trim();
@@ -131,6 +163,10 @@ class Conversation {
       'IMAGE' => 'Sent an image',
       'VIDEO' => 'Sent a video',
       'FILE' => 'Sent a file',
+      'SYSTEM' =>
+        message.content.trim().isEmpty
+            ? 'Conversation updated'
+            : message.content.trim(),
       _ => message.content.trim().isEmpty ? 'New message' : message.content,
     };
     return message.senderId == currentUserId ? 'You: $content' : content;

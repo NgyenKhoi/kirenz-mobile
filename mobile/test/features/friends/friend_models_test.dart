@@ -41,5 +41,17 @@ void main() {
     expect(result.id, 'user-1');
     expect(result.resolvedName, 'Mai Nguyen');
     expect(result.relationshipStatus, RelationshipStatus.none);
+    expect(result.allowDirectMessages, isNull);
+  });
+
+  test('preserves an explicit direct-message permission projection', () {
+    final result = UserSearchResult.fromJson({
+      'id': 'user-2',
+      'username': 'private_user',
+      'relationshipStatus': 'NONE',
+      'allowDirectMessages': false,
+    });
+
+    expect(result.allowDirectMessages, isFalse);
   });
 }

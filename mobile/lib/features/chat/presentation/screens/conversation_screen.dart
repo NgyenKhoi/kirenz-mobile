@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../auth/presentation/controllers/session_controller.dart';
 import '../controllers/conversation_controller.dart';
@@ -12,16 +13,31 @@ class ConversationScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final currentUserId = ref.watch(sessionControllerProvider).user?.id;
-    final conversation = ref
-        .watch(conversationControllerProvider)
-        .value
+    final list = ref.watch(conversationControllerProvider);
+    final existing = list.value
         ?.where((item) => item.id == conversationId)
         .firstOrNull;
-    if (conversation == null) {
-      return const Scaffold(
-        body: Center(child: Text('Conversation unavailable')),
+    if (existing == null) {
+      return FutureBuilder(
+        future: ref
+            .read(conversationControllerProvider.notifier)
+            .loadById(conversationId),
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return Scaffold(
+              appBar: AppBar(),
+              body: Center(
+                child: Text('Conversation unavailable: ${snapshot.error}'),
+              ),
+            );
+          }
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        },
       );
     }
+    final conversation = existing;
     return Scaffold(
       appBar: AppBar(
         title: Text(conversation.titleFor(currentUserId)),
@@ -29,7 +45,7 @@ class ConversationScreen extends ConsumerWidget {
           if (conversation.type.name == 'group')
             IconButton(
               tooltip: 'Group settings',
-              onPressed: null,
+              onPressed: () => context.push('/chat/$conversationId/settings'),
               icon: const Icon(Icons.settings_outlined),
             ),
         ],

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -14,6 +16,7 @@ class ChatScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final conversations = ref.watch(conversationControllerProvider);
+    final cachedAt = ref.watch(conversationCacheStatusProvider);
     final currentUserId = ref.watch(sessionControllerProvider).user?.id;
     return Scaffold(
       appBar: AppBar(
@@ -33,29 +36,40 @@ class ChatScreen extends ConsumerWidget {
       ),
       body: conversations.when(
         skipLoadingOnRefresh: true,
-        data: (rows) => RefreshIndicator(
-          onRefresh: () =>
-              ref.read(conversationControllerProvider.notifier).refresh(),
-          child: rows.isEmpty
-              ? ListView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  children: const [
-                    SizedBox(height: 160),
-                    Icon(Icons.forum_outlined, size: 56),
-                    SizedBox(height: 16),
-                    Center(child: Text('No conversations yet')),
-                    SizedBox(height: 8),
-                    Center(child: Text('Start a message or create a group.')),
-                  ],
-                )
-              : ListView.separated(
-                  itemCount: rows.length,
-                  separatorBuilder: (_, _) => const Divider(height: 1),
-                  itemBuilder: (context, index) => _ConversationTile(
-                    conversation: rows[index],
-                    currentUserId: currentUserId,
-                  ),
-                ),
+        skipError: true,
+        data: (rows) => Column(
+          children: [
+            if (cachedAt != null) const _OfflineNotice(),
+            if (conversations.hasError) const _RefreshErrorNotice(),
+            Expanded(
+              child: RefreshIndicator(
+                onRefresh: () =>
+                    ref.read(conversationControllerProvider.notifier).refresh(),
+                child: rows.isEmpty
+                    ? ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        children: const [
+                          SizedBox(height: 160),
+                          Icon(Icons.forum_outlined, size: 56),
+                          SizedBox(height: 16),
+                          Center(child: Text('No conversations yet')),
+                          SizedBox(height: 8),
+                          Center(
+                            child: Text('Start a message or create a group.'),
+                          ),
+                        ],
+                      )
+                    : ListView.separated(
+                        itemCount: rows.length,
+                        separatorBuilder: (_, _) => const Divider(height: 1),
+                        itemBuilder: (context, index) => _ConversationTile(
+                          conversation: rows[index],
+                          currentUserId: currentUserId,
+                        ),
+                      ),
+              ),
+            ),
+          ],
         ),
         loading: () => const _ConversationSkeleton(),
         error: (error, stackTrace) => _ConversationError(
@@ -65,6 +79,36 @@ class ChatScreen extends ConsumerWidget {
       ),
     );
   }
+}
+
+class _OfflineNotice extends StatelessWidget {
+  const _OfflineNotice();
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: Theme.of(context).colorScheme.secondaryContainer,
+    child: const ListTile(
+      dense: true,
+      leading: Icon(Icons.cloud_off_outlined),
+      title: Text('Showing saved conversations'),
+      subtitle: Text('Pull to reconnect and refresh.'),
+    ),
+  );
+}
+
+class _RefreshErrorNotice extends StatelessWidget {
+  const _RefreshErrorNotice();
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: Theme.of(context).colorScheme.errorContainer,
+    child: const ListTile(
+      dense: true,
+      leading: Icon(Icons.sync_problem_outlined),
+      title: Text('Could not refresh conversations'),
+      subtitle: Text('Showing the last available list.'),
+    ),
+  );
 }
 
 class _ConversationTile extends StatelessWidget {
@@ -81,10 +125,10 @@ class _ConversationTile extends StatelessWidget {
     final title = conversation.titleFor(currentUserId);
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      leading: CircleAvatar(
-        child: conversation.type == ConversationType.group
-            ? const Icon(Icons.groups_outlined)
-            : Text(_initials(title)),
+      leading: _ConversationAvatar(
+        conversation: conversation,
+        currentUserId: currentUserId,
+        title: title,
       ),
       title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
       subtitle: Text(
@@ -92,12 +136,109 @@ class _ConversationTile extends StatelessWidget {
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
       ),
-      trailing: conversation.unreadCount > 0
-          ? Badge(label: Text('${conversation.unreadCount}'))
-          : null,
+      trailing: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Text(
+            _formatConversationTime(
+              conversation.lastMessage?.sentAt ?? conversation.updatedAt,
+            ),
+            style: Theme.of(context).textTheme.labelSmall,
+          ),
+          if (conversation.unreadCount > 0) ...[
+            const SizedBox(height: 4),
+            Badge(label: Text('${conversation.unreadCount}')),
+          ],
+        ],
+      ),
       onTap: () => context.push('/chat/${conversation.id}'),
     );
   }
+}
+
+class _ConversationAvatar extends StatelessWidget {
+  const _ConversationAvatar({
+    required this.conversation,
+    required this.currentUserId,
+    required this.title,
+  });
+
+  final Conversation conversation;
+  final String? currentUserId;
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    final people = conversation.participants
+        .where((person) => person.userId != currentUserId)
+        .take(2)
+        .toList();
+    if (conversation.type == ConversationType.direct) {
+      return _PersonAvatar(person: people.firstOrNull, fallback: title);
+    }
+    if (people.isEmpty) return CircleAvatar(child: Text(_initials(title)));
+    return SizedBox.square(
+      dimension: 40,
+      child: Stack(
+        children: [
+          Align(
+            alignment: Alignment.topLeft,
+            child: _PersonAvatar(
+              person: people.first,
+              fallback: title,
+              radius: 14,
+            ),
+          ),
+          if (people.length > 1)
+            Align(
+              alignment: Alignment.bottomRight,
+              child: _PersonAvatar(
+                person: people[1],
+                fallback: title,
+                radius: 14,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PersonAvatar extends StatelessWidget {
+  const _PersonAvatar({
+    required this.person,
+    required this.fallback,
+    this.radius,
+  });
+
+  final ConversationParticipant? person;
+  final String fallback;
+  final double? radius;
+
+  @override
+  Widget build(BuildContext context) {
+    final url = person?.avatarUrl?.trim();
+    return CircleAvatar(
+      radius: radius,
+      backgroundImage: url?.isNotEmpty == true ? NetworkImage(url!) : null,
+      child: url?.isNotEmpty == true
+          ? null
+          : Text(_initials(person?.resolvedName ?? fallback)),
+    );
+  }
+}
+
+String _formatConversationTime(DateTime? value) {
+  if (value == null) return '';
+  final local = value.toLocal();
+  final now = DateTime.now();
+  if (local.year == now.year &&
+      local.month == now.month &&
+      local.day == now.day) {
+    return '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+  }
+  return '${local.day}/${local.month}';
 }
 
 class _ConversationSkeleton extends StatelessWidget {
@@ -166,8 +307,15 @@ class _DirectSearchSheet extends ConsumerStatefulWidget {
 
 class _DirectSearchSheetState extends ConsumerState<_DirectSearchSheet> {
   String _query = '';
+  Timer? _debounce;
   String? _pendingId;
   String? _error;
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -195,10 +343,13 @@ class _DirectSearchSheetState extends ConsumerState<_DirectSearchSheet> {
                   hintText: 'Search people',
                   prefixIcon: Icon(Icons.search),
                 ),
-                onChanged: (value) => setState(() {
-                  _query = value.trim();
-                  _error = null;
-                }),
+                onChanged: (value) {
+                  _debounce?.cancel();
+                  setState(() => _error = null);
+                  _debounce = Timer(const Duration(milliseconds: 450), () {
+                    if (mounted) setState(() => _query = value.trim());
+                  });
+                },
               ),
               if (_error != null)
                 Padding(
@@ -224,35 +375,50 @@ class _DirectSearchSheetState extends ConsumerState<_DirectSearchSheet> {
       return const Center(child: Text('Type at least 2 characters.'));
     }
     return results.when(
-      data: (users) => users.isEmpty
-          ? const Center(child: Text('No people found'))
-          : ListView.builder(
-              itemCount: users.length,
-              itemBuilder: (context, index) {
-                final user = users[index];
-                final unavailable =
-                    user.relationshipStatus == RelationshipStatus.blocked ||
-                    user.relationshipStatus ==
-                        RelationshipStatus.blockedByTarget;
-                return ListTile(
-                  leading: CircleAvatar(
-                    child: Text(_initials(user.resolvedName)),
-                  ),
-                  title: Text(user.resolvedName),
-                  subtitle: Text(
-                    unavailable ? 'Messaging unavailable' : '@${user.username}',
-                  ),
-                  enabled: !unavailable && _pendingId == null,
-                  trailing: _pendingId == user.id
-                      ? const SizedBox.square(
-                          dimension: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.chevron_right),
-                  onTap: unavailable ? null : () => _openDirect(user.id),
-                );
-              },
-            ),
+      data: (users) {
+        final currentUserId = ref.read(sessionControllerProvider).user?.id;
+        final availableUsers = users
+            .where(
+              (user) =>
+                  user.relationshipStatus != RelationshipStatus.self &&
+                  user.id != currentUserId,
+            )
+            .toList(growable: false);
+        return availableUsers.isEmpty
+            ? const Center(child: Text('No people found'))
+            : ListView.builder(
+                itemCount: availableUsers.length,
+                itemBuilder: (context, index) {
+                  final user = availableUsers[index];
+                  final unavailable =
+                      user.relationshipStatus == RelationshipStatus.blocked ||
+                      user.relationshipStatus ==
+                          RelationshipStatus.blockedByTarget ||
+                      user.allowDirectMessages == false;
+                  return ListTile(
+                    leading: CircleAvatar(
+                      child: Text(_initials(user.resolvedName)),
+                    ),
+                    title: Text(user.resolvedName),
+                    subtitle: Text(
+                      user.allowDirectMessages == false
+                          ? 'Direct messages are disabled'
+                          : unavailable
+                          ? 'Messaging unavailable'
+                          : '@${user.username}',
+                    ),
+                    enabled: !unavailable && _pendingId == null,
+                    trailing: _pendingId == user.id
+                        ? const SizedBox.square(
+                            dimension: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.chevron_right),
+                    onTap: unavailable ? null : () => _openDirect(user.id),
+                  );
+                },
+              );
+      },
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (error, stackTrace) => Center(child: Text(error.toString())),
     );
@@ -267,7 +433,11 @@ class _DirectSearchSheetState extends ConsumerState<_DirectSearchSheet> {
       final conversation = await ref
           .read(conversationControllerProvider.notifier)
           .getOrCreateDirect(userId);
-      if (mounted) context.go('/chat/${conversation.id}');
+      if (mounted) {
+        final router = GoRouter.of(context);
+        Navigator.of(context).pop();
+        router.go('/chat/${conversation.id}');
+      }
     } catch (error) {
       if (mounted) setState(() => _error = error.toString());
     } finally {
@@ -293,102 +463,185 @@ class _CreateGroupSheet extends ConsumerStatefulWidget {
 
 class _CreateGroupSheetState extends ConsumerState<_CreateGroupSheet> {
   final _name = TextEditingController();
-  final Set<String> _selected = {};
+  final Map<String, UserSearchResult> _selected = {};
+  String _query = '';
+  Timer? _debounce;
   bool _pending = false;
   String? _error;
+  bool _allowPop = false;
 
   @override
   void dispose() {
+    _debounce?.cancel();
     _name.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final friends = ref.watch(friendsProvider(null));
-    return SafeArea(
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(
-          20,
-          0,
-          20,
-          MediaQuery.viewInsetsOf(context).bottom + 20,
-        ),
-        child: SizedBox(
-          height: MediaQuery.sizeOf(context).height * .78,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                'Create group',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: _name,
-                enabled: !_pending,
-                decoration: const InputDecoration(labelText: 'Group name'),
-                onChanged: (_) => setState(() {}),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                '${_selected.length} selected',
-                style: Theme.of(context).textTheme.labelLarge,
-              ),
-              if (_error != null)
+    final results = ref.watch(userSearchProvider(_query));
+    final currentUserId = ref.watch(sessionControllerProvider).user?.id;
+    return PopScope(
+      canPop: _allowPop || !_hasDraft,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop || _allowPop || !_hasDraft) return;
+        final discard = await _confirmDiscard();
+        if (!discard || !mounted) return;
+        setState(() => _allowPop = true);
+        Navigator.of(this.context).pop();
+      },
+      child: SafeArea(
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(
+            20,
+            0,
+            20,
+            MediaQuery.viewInsetsOf(context).bottom + 20,
+          ),
+          child: SizedBox(
+            height: MediaQuery.sizeOf(context).height * .78,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
                 Text(
-                  _error!,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                  'Create group',
+                  style: Theme.of(context).textTheme.titleLarge,
                 ),
-              const SizedBox(height: 8),
-              Expanded(
-                child: friends.when(
-                  data: (rows) => ListView.builder(
-                    itemCount: rows.length,
-                    itemBuilder: (context, index) {
-                      final friend = rows[index];
-                      return CheckboxListTile(
-                        value: _selected.contains(friend.friendId),
-                        title: Text(friend.resolvedName),
-                        subtitle: friend.username == null
-                            ? null
-                            : Text('@${friend.username}'),
-                        onChanged: _pending
-                            ? null
-                            : (selected) => setState(() {
-                                selected == true
-                                    ? _selected.add(friend.friendId)
-                                    : _selected.remove(friend.friendId);
-                              }),
-                      );
-                    },
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _name,
+                  enabled: !_pending,
+                  decoration: const InputDecoration(labelText: 'Group name'),
+                  onChanged: (_) => setState(() {}),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  enabled: !_pending,
+                  decoration: const InputDecoration(
+                    labelText: 'Search people',
+                    prefixIcon: Icon(Icons.search),
                   ),
-                  loading: () =>
-                      const Center(child: CircularProgressIndicator()),
-                  error: (error, stackTrace) =>
-                      Center(child: Text(error.toString())),
+                  onChanged: (value) {
+                    _debounce?.cancel();
+                    _debounce = Timer(const Duration(milliseconds: 450), () {
+                      if (mounted) setState(() => _query = value.trim());
+                    });
+                  },
                 ),
-              ),
-              FilledButton(
-                onPressed:
-                    !_pending &&
-                        _name.text.trim().isNotEmpty &&
-                        _selected.length >= 2
-                    ? _create
-                    : null,
-                child: _pending
-                    ? const SizedBox.square(
-                        dimension: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text('Create group'),
-              ),
-            ],
+                if (_selected.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: _selected.values
+                        .map(
+                          (user) => InputChip(
+                            label: Text(user.resolvedName),
+                            onDeleted: _pending
+                                ? null
+                                : () =>
+                                      setState(() => _selected.remove(user.id)),
+                          ),
+                        )
+                        .toList(growable: false),
+                  ),
+                ],
+                const SizedBox(height: 8),
+                Text(
+                  '${_selected.length} selected',
+                  style: Theme.of(context).textTheme.labelLarge,
+                ),
+                if (_error != null)
+                  Text(
+                    _error!,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                const SizedBox(height: 8),
+                Expanded(
+                  child: _query.length < 2
+                      ? const Center(child: Text('Type at least 2 characters.'))
+                      : results.when(
+                          data: (rows) {
+                            final available = rows
+                                .where((user) => user.id != currentUserId)
+                                .toList(growable: false);
+                            if (available.isEmpty) {
+                              return const Center(
+                                child: Text('No people found'),
+                              );
+                            }
+                            return ListView.builder(
+                              itemCount: available.length,
+                              itemBuilder: (context, index) {
+                                final user = available[index];
+                                return CheckboxListTile(
+                                  value: _selected.containsKey(user.id),
+                                  title: Text(user.resolvedName),
+                                  subtitle: Text('@${user.username}'),
+                                  onChanged: _pending
+                                      ? null
+                                      : (selected) => setState(() {
+                                          selected == true
+                                              ? _selected[user.id] = user
+                                              : _selected.remove(user.id);
+                                        }),
+                                );
+                              },
+                            );
+                          },
+                          loading: () =>
+                              const Center(child: CircularProgressIndicator()),
+                          error: (error, stackTrace) =>
+                              Center(child: Text(error.toString())),
+                        ),
+                ),
+                FilledButton(
+                  onPressed:
+                      !_pending &&
+                          _name.text.trim().isNotEmpty &&
+                          _selected.length >= 2
+                      ? _create
+                      : null,
+                  child: _pending
+                      ? const SizedBox.square(
+                          dimension: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Create group'),
+                ),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
+
+  bool get _hasDraft => _name.text.trim().isNotEmpty || _selected.isNotEmpty;
+
+  Future<bool> _confirmDiscard() async =>
+      await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Discard group draft?'),
+          content: const Text(
+            'The group name and selected members will be lost.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Keep editing'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Discard'),
+            ),
+          ],
+        ),
+      ) ??
+      false;
 
   Future<void> _create() async {
     setState(() {
@@ -398,8 +651,16 @@ class _CreateGroupSheetState extends ConsumerState<_CreateGroupSheet> {
     try {
       final conversation = await ref
           .read(conversationControllerProvider.notifier)
-          .createGroup(name: _name.text, participantIds: _selected.toList());
-      if (mounted) context.go('/chat/${conversation.id}');
+          .createGroup(
+            name: _name.text,
+            participantIds: _selected.keys.toList(growable: false),
+          );
+      if (mounted) {
+        final router = GoRouter.of(context);
+        setState(() => _allowPop = true);
+        Navigator.of(context).pop();
+        router.go('/chat/${conversation.id}');
+      }
     } catch (error) {
       if (mounted) setState(() => _error = error.toString());
     } finally {
