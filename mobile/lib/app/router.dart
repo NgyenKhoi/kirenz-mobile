@@ -19,6 +19,7 @@ import '../features/privacy/presentation/screens/privacy_screen.dart';
 import '../features/profile/presentation/screens/edit_profile_screen.dart';
 import '../features/profile/presentation/screens/edit_cover_screen.dart';
 import '../features/profile/presentation/screens/profile_screen.dart';
+import '../features/posts/presentation/screens/post_detail_screen.dart';
 import '../shared/widgets/main_shell.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -33,9 +34,14 @@ final routerProvider = Provider<GoRouter>((ref) {
           location == '/register' ||
           location == '/verify-otp';
       final isSplash = location == '/splash';
+      final isUnsupportedRole = location == '/unsupported-account';
 
       if (session.status == SessionStatus.checking) {
         return isSplash ? null : '/splash';
+      }
+
+      if (session.status == SessionStatus.unsupportedRole) {
+        return isUnsupportedRole ? null : '/unsupported-account';
       }
 
       if (!session.isAuthenticated) {
@@ -76,6 +82,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           intendedDestination: state.uri.queryParameters['redirect'],
         ),
       ),
+      GoRoute(
+        path: '/unsupported-account',
+        builder: (context, state) => const _UnsupportedAccountScreen(),
+      ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) {
           return MainShell(navigationShell: navigationShell);
@@ -93,7 +103,9 @@ final routerProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: '/explore',
-                builder: (context, state) => const ExploreScreen(),
+                builder: (context, state) => ExploreScreen(
+                  initialQuery: state.uri.queryParameters['query'],
+                ),
               ),
             ],
           ),
@@ -101,7 +113,9 @@ final routerProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: '/friends',
-                builder: (context, state) => const FriendsScreen(),
+                builder: (context, state) => FriendsScreen(
+                  initialSegment: state.uri.queryParameters['segment'],
+                ),
               ),
             ],
           ),
@@ -174,6 +188,58 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) =>
             const MaterialPage(child: BlockedUsersScreen()),
       ),
+      GoRoute(
+        path: '/post/:postId',
+        pageBuilder: (context, state) => MaterialPage(
+          child: PostDetailScreen(postId: state.pathParameters['postId'] ?? ''),
+        ),
+      ),
     ],
   );
 });
+
+class _UnsupportedAccountScreen extends ConsumerWidget {
+  const _UnsupportedAccountScreen();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final session = ref.watch(sessionControllerProvider);
+    return Scaffold(
+      appBar: AppBar(title: const Text('Kirenz Mobile')),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.admin_panel_settings_outlined, size: 56),
+                const SizedBox(height: 16),
+                Text(
+                  'This account is managed in the Kirenz admin portal.',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'The mobile app currently supports user accounts only.',
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+                FilledButton(
+                  onPressed: session.pendingAction == AuthPendingAction.logout
+                      ? null
+                      : () => ref
+                            .read(sessionControllerProvider.notifier)
+                            .signOut(),
+                  child: const Text('Sign out'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

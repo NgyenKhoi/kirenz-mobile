@@ -7,8 +7,11 @@ import 'package:go_router/go_router.dart';
 import '../../../auth/presentation/controllers/session_controller.dart';
 import '../../../friends/domain/entities/friend_models.dart';
 import '../../../friends/presentation/controllers/friends_controller.dart';
+import '../../../privacy/data/repositories/privacy_repository.dart';
 import '../../domain/entities/conversation.dart';
+import '../../domain/entities/realtime_chat.dart';
 import '../controllers/conversation_controller.dart';
+import '../controllers/chat_realtime_controller.dart';
 
 class ChatScreen extends ConsumerWidget {
   const ChatScreen({super.key});
@@ -18,6 +21,7 @@ class ChatScreen extends ConsumerWidget {
     final conversations = ref.watch(conversationControllerProvider);
     final cachedAt = ref.watch(conversationCacheStatusProvider);
     final currentUserId = ref.watch(sessionControllerProvider).user?.id;
+    final realtime = ref.watch(chatRealtimeControllerProvider);
     return Scaffold(
       appBar: AppBar(
         title: const Text('Chat'),
@@ -39,6 +43,15 @@ class ChatScreen extends ConsumerWidget {
         skipError: true,
         data: (rows) => Column(
           children: [
+            if (realtime.status == ChatConnectionStatus.reconnecting ||
+                realtime.status == ChatConnectionStatus.disconnected)
+              const _RealtimeListNotice(message: 'Reconnecting…'),
+            if (realtime.status == ChatConnectionStatus.failed)
+              _RealtimeListNotice(
+                message: 'Live updates unavailable',
+                onRetry: () =>
+                    ref.read(chatRealtimeControllerProvider.notifier).retry(),
+              ),
             if (cachedAt != null) const _OfflineNotice(),
             if (conversations.hasError) const _RefreshErrorNotice(),
             Expanded(
@@ -65,6 +78,7 @@ class ChatScreen extends ConsumerWidget {
                         itemBuilder: (context, index) => _ConversationTile(
                           conversation: rows[index],
                           currentUserId: currentUserId,
+                          presence: realtime.presence,
                         ),
                       ),
               ),
@@ -79,6 +93,26 @@ class ChatScreen extends ConsumerWidget {
       ),
     );
   }
+}
+
+class _RealtimeListNotice extends StatelessWidget {
+  const _RealtimeListNotice({required this.message, this.onRetry});
+
+  final String message;
+  final VoidCallback? onRetry;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: Theme.of(context).colorScheme.surfaceContainerHigh,
+    child: ListTile(
+      dense: true,
+      leading: const Icon(Icons.sync_outlined),
+      title: Text(message),
+      trailing: onRetry == null
+          ? null
+          : TextButton(onPressed: onRetry, child: const Text('Retry')),
+    ),
+  );
 }
 
 class _OfflineNotice extends StatelessWidget {
@@ -115,20 +149,37 @@ class _ConversationTile extends StatelessWidget {
   const _ConversationTile({
     required this.conversation,
     required this.currentUserId,
+    required this.presence,
   });
 
   final Conversation conversation;
   final String? currentUserId;
+  final Map<String, UserPresence> presence;
 
   @override
   Widget build(BuildContext context) {
     final title = conversation.titleFor(currentUserId);
+    final otherUser = conversation.type == ConversationType.direct
+        ? conversation.participants
+              .where((person) => person.userId != currentUserId)
+              .firstOrNull
+        : null;
+    final isOnline =
+        otherUser != null && presence[otherUser.userId]?.isOnline == true;
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      leading: _ConversationAvatar(
-        conversation: conversation,
-        currentUserId: currentUserId,
-        title: title,
+      leading: Semantics(
+        label: isOnline ? '$title, Online' : title,
+        child: Badge(
+          isLabelVisible: isOnline,
+          backgroundColor: Colors.green,
+          smallSize: 10,
+          child: _ConversationAvatar(
+            conversation: conversation,
+            currentUserId: currentUserId,
+            title: title,
+          ),
+        ),
       ),
       title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
       subtitle: Text(
@@ -430,6 +481,17 @@ class _DirectSearchSheetState extends ConsumerState<_DirectSearchSheet> {
       _error = null;
     });
     try {
+      final allowed = await ref
+          .read(privacyRepositoryProvider)
+          .canSendDirectMessage(userId);
+      if (!allowed) {
+        if (mounted) {
+          setState(() {
+            _error = 'This person only accepts messages from friends.';
+          });
+        }
+        return;
+      }
       final conversation = await ref
           .read(conversationControllerProvider.notifier)
           .getOrCreateDirect(userId);

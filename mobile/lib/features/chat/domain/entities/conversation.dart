@@ -132,6 +132,24 @@ class Conversation {
   final DateTime? updatedAt;
   final int unreadCount;
 
+  Conversation copyWith({
+    ConversationLastMessage? lastMessage,
+    bool clearLastMessage = false,
+    DateTime? updatedAt,
+    int? unreadCount,
+  }) => Conversation(
+    id: id,
+    type: type,
+    name: name,
+    participants: participants,
+    adminIds: adminIds,
+    currentUserAdmin: currentUserAdmin,
+    lastMessage: clearLastMessage ? null : lastMessage ?? this.lastMessage,
+    createdAt: createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    unreadCount: unreadCount ?? this.unreadCount,
+  );
+
   Map<String, dynamic> toJson() => {
     'id': id,
     'type': type == ConversationType.group ? 'GROUP' : 'DIRECT',

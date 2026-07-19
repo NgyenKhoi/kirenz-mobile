@@ -23,7 +23,7 @@ Depends on:
 - Verify is disabled while incomplete or pending.
 - Resend is disabled while sending and during the 60-second cooldown.
 - Successful verification shows a success state and currently redirects after a short countdown.
-- Login supports email/password and routes unverified accounts to OTP.
+- Login supports email/password. Token issuance is followed by `GET /api/users/me`; an authenticated profile with `emailVerified=false` routes to OTP.
 - Google login sends the Google `idToken` to Kirenz and stores only Kirenz tokens.
 - Logout clears local tokens and authenticated state.
 
@@ -39,6 +39,7 @@ Web discrepancy mobile must correct:
 | Login | `POST /api/auth/login`. |
 | Google login | `POST /api/auth/google { idToken }`. |
 | Refresh | `POST /api/auth/refresh`. |
+| Session profile | `GET /api/users/me` after login, Google login, refresh, and app restore. |
 | Send OTP | `POST /api/verification/send-otp { email }`. |
 | Verify OTP | `POST /api/verification/verify-otp { email, otp }`. |
 
@@ -53,6 +54,8 @@ LoginRequest { email, password }
 GoogleLoginRequest { idToken }
 RefreshTokenRequest { refreshToken }
 LoginResponse { accessToken, refreshToken, tokenType, expiresIn }
+UserProfileResponse { id, email, username, displayName, avatarUrl, coverPhotoUrl,
+  bio, birthDate, gender, location, website, role, emailVerified, createdAt, updatedAt }
 SendOtpRequest { email }
 SendOtpResponse { message }
 VerifyOtpRequest { email, otp }
@@ -78,8 +81,8 @@ Authenticated users must not return to login/register through normal back naviga
 
 1. Read access/refresh tokens from secure storage.
 2. If absent, route to Login.
-3. If access token is usable, bootstrap current user, then connect realtime services.
-4. If expired, perform one refresh, persist new tokens, then bootstrap.
+3. If access token is usable, fetch canonical `GET /users/me`, then connect realtime services.
+4. If expired, perform one refresh, persist new tokens, fetch canonical `GET /users/me`, then bootstrap.
 5. If refresh fails, clear all session data and route to Login.
 6. Keep a branded splash visible while the decision is pending; never flash Home before redirecting to Login.
 
@@ -91,7 +94,9 @@ Authenticated users must not return to login/register through normal back naviga
 - Submit is disabled while pending.
 - Invalid credentials map to the most useful field; transport/server errors use a form-level message.
 - Google button is independent of email/password validation.
-- If backend reports unverified email, retain email and route to OTP.
+- Login/Google token responses contain no user object. Persist tokens, load `/users/me`, and never synthesize a user from the token response.
+- If `/users/me` returns `emailVerified=false`, retain its email and route to OTP without entering the authenticated social shell.
+- Preserve `role`; the social shell is for `USER`. An `ADMIN` account must not be silently treated as a normal social user.
 
 ### Register
 

@@ -43,6 +43,7 @@ Mobile improvement:
 | Remove friend | `DELETE /api/friends/{friendId}`. |
 | Relationship status | `GET /api/friends/status/{targetUserId}`. |
 | Privacy | `GET/PUT /api/privacy/me`; `GET /api/privacy/user/{userId}`. |
+| Direct-message permission | `GET /api/privacy/can-message/{receiverId}` returns `ApiResponse<Boolean>` for the authenticated sender. |
 | Block/unblock/list/status | `POST/DELETE /api/blocks/{userId}`, `GET /api/blocks`, `GET /api/blocks/status/{userId}`. |
 
 Exact request/response `data` shapes and enums:
@@ -55,7 +56,7 @@ FriendResponse { friendshipId, friendId, username, displayName, avatarUrl, bio, 
 FriendStatusResponse { userId, targetUserId, status }
 FriendSuggestionResponse { id, username, displayName, avatarUrl, bio, mutualFriendCount }
 MutualFriendResponse { id, username, displayName, avatarUrl, bio }
-UserSearchResponse { id, username, displayName, avatarUrl, bio, relationshipStatus }
+UserSearchResponse { id, email, username, displayName, avatarUrl, bio, relationshipStatus }
 BlockResponse { id, blockedUserId, createdAt }
 BlockStatusResponse { viewerId, targetUserId, blockedByViewer, blockedViewer }
 UpdatePrivacyRequest { profileVisibility, postVisibility, allowDirectMessages, showOnlineStatus }
@@ -67,6 +68,8 @@ PrivacyVisibility = PUBLIC | FRIENDS_ONLY | PRIVATE
 ```
 
 The friend-request `status` remains a backend string/enum projection; controllers must preserve unknown future values as an unsupported state rather than mapping them to `NONE`. Block direction is determined only by `blockedByViewer` and `blockedViewer`.
+
+`UserSearchResponse` does not expose `allowDirectMessages`. Do not infer DM permission from search results or the raw privacy boolean. Resolve permission with `/privacy/can-message/{receiverId}` when entering/creating a direct chat. Current business logic allows messaging when the receiver accepts anyone, or when sender and receiver are friends.
 
 ## Routes And Screen Structure
 
@@ -142,6 +145,7 @@ Behavior:
 - Save pending disables repeated submit.
 - Failure preserves staged values and shows a form-level recovery.
 - Success replaces canonical settings and updates privacy-aware profile/chat/presence behavior.
+- `allowDirectMessages=false` means "friends only", not "nobody"; backend friendship state is part of the permission decision.
 - Unsaved Back opens Discard/Keep editing.
 
 Do not locally reveal data hidden by backend privacy. The server response is authoritative.

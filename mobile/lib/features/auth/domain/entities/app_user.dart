@@ -5,6 +5,8 @@ class AppUser {
     required this.email,
     this.username = '',
     this.avatarUrl,
+    this.role = 'USER',
+    this.emailVerified = true,
   });
 
   factory AppUser.fromJson(Map<String, dynamic> json) {
@@ -24,6 +26,10 @@ class AppUser {
       email: email,
       username: _stringValue(json, ['username']),
       avatarUrl: _nullableStringValue(json, ['avatarUrl']),
+      role: _stringValue(json, ['role']).isEmpty
+          ? 'USER'
+          : _stringValue(json, ['role']).toUpperCase(),
+      emailVerified: json['emailVerified'] != false,
     );
   }
 
@@ -32,12 +38,16 @@ class AppUser {
   final String email;
   final String username;
   final String? avatarUrl;
+  final String role;
+  final bool emailVerified;
 
   AppUser copyWith({
     String? displayName,
     String? email,
     String? username,
     String? avatarUrl,
+    String? role,
+    bool? emailVerified,
   }) {
     return AppUser(
       id: id,
@@ -45,6 +55,8 @@ class AppUser {
       email: email ?? this.email,
       username: username ?? this.username,
       avatarUrl: avatarUrl ?? this.avatarUrl,
+      role: role ?? this.role,
+      emailVerified: emailVerified ?? this.emailVerified,
     );
   }
 }

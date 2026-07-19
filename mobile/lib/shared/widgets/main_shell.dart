@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/chat/presentation/controllers/conversation_controller.dart';
+import '../../features/notifications/presentation/controllers/notification_controller.dart';
 
 class MainShell extends ConsumerWidget {
   const MainShell({required this.navigationShell, super.key});
@@ -20,6 +21,9 @@ class MainShell extends ConsumerWidget {
               (sum, conversation) => sum + conversation.unreadCount,
             ) ??
         0;
+    final socialUnread = ref.watch(
+      notificationControllerProvider.select((state) => state.unreadCount),
+    );
     return Scaffold(
       body: navigationShell,
       bottomNavigationBar: NavigationBar(
@@ -59,9 +63,17 @@ class MainShell extends ConsumerWidget {
             ),
             label: 'Chat',
           ),
-          const NavigationDestination(
-            icon: Icon(Icons.notifications_outlined),
-            selectedIcon: Icon(Icons.notifications),
+          NavigationDestination(
+            icon: Badge(
+              isLabelVisible: socialUnread > 0,
+              label: Text(socialUnread > 99 ? '99+' : '$socialUnread'),
+              child: const Icon(Icons.notifications_outlined),
+            ),
+            selectedIcon: Badge(
+              isLabelVisible: socialUnread > 0,
+              label: Text(socialUnread > 99 ? '99+' : '$socialUnread'),
+              child: const Icon(Icons.notifications),
+            ),
             label: 'Alerts',
           ),
           const NavigationDestination(

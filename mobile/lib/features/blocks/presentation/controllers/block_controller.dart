@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../feed/presentation/controllers/feed_controller.dart';
 import '../../../friends/presentation/controllers/friends_controller.dart';
+import '../../../privacy/data/repositories/privacy_repository.dart';
 import '../../../profile/data/repositories/profile_content_repository.dart';
 import '../../../profile/data/cache/profile_cache.dart';
 import '../../data/repositories/block_repository.dart';
@@ -48,6 +50,8 @@ class BlockActionController extends Notifier<Set<String>> {
       ref.invalidate(userSearchProvider);
       ref.invalidate(profilePostsProvider(userId));
       ref.invalidate(profilePhotosProvider(userId));
+      ref.invalidate(feedControllerProvider);
+      ref.invalidate(privacyRepositoryProvider);
     } finally {
       state = {...state}..remove(userId);
     }

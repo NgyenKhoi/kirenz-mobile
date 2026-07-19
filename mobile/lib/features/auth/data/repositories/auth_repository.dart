@@ -28,8 +28,18 @@ class AuthRepository {
     final accessToken = await _tokenStorage.readAccessToken();
     final refreshToken = await _tokenStorage.readRefreshToken();
     if (isAccessTokenUsable(accessToken)) {
-      final storedUser = await _storedUserFallback();
-      if (storedUser != null) return storedUser;
+      try {
+        final user = await _getCurrentUser();
+        await _tokenStorage.saveSession(
+          accessToken: accessToken!,
+          refreshToken: refreshToken ?? '',
+          userId: user.id,
+        );
+        return user;
+      } on ApiException {
+        await _tokenStorage.clear();
+        return null;
+      }
     }
     if (refreshToken == null || refreshToken.isEmpty) {
       await _tokenStorage.clear();
@@ -39,7 +49,9 @@ class AuthRepository {
     try {
       final result = await refresh(refreshToken);
       await _saveResult(result);
-      return result.user;
+      final user = await _getCurrentUser();
+      await _saveResult(result, userId: user.id);
+      return user;
     } on ApiException {
       await _tokenStorage.clear();
       return null;
@@ -54,8 +66,7 @@ class AuthRepository {
       '/auth/login',
       data: {'email': email, 'password': password},
     );
-    await _saveResult(result);
-    return result.user;
+    return _finishAuthentication(result);
   }
 
   Future<AppUser> loginWithGoogle({required String idToken}) async {
@@ -63,8 +74,7 @@ class AuthRepository {
       '/auth/google',
       data: {'idToken': idToken},
     );
-    await _saveResult(result);
-    return result.user;
+    return _finishAuthentication(result);
   }
 
   Future<RegisterResult> register({
@@ -111,7 +121,7 @@ class AuthRepository {
     await _tokenStorage.clear();
   }
 
-  Future<void> _saveResult(AuthResultDto result) async {
+  Future<void> _saveResult(AuthResultDto result, {String? userId}) async {
     if (!result.hasTokens) {
       throw const ApiException(
         'Authentication response did not include tokens.',
@@ -121,17 +131,53 @@ class AuthRepository {
     await _tokenStorage.saveSession(
       accessToken: result.accessToken,
       refreshToken: result.refreshToken,
-      userId: result.user.id,
+      userId: userId ?? _jwtSubject(result.accessToken),
     );
   }
 
-  Future<AppUser?> _storedUserFallback() async {
-    final userId = await _tokenStorage.readCurrentUserId();
-    if (userId == null || userId.isEmpty) {
-      return null;
+  Future<AppUser> _finishAuthentication(AuthResultDto result) async {
+    await _saveResult(result);
+    try {
+      final user = await _getCurrentUser();
+      await _saveResult(result, userId: user.id);
+      return user;
+    } on Object {
+      await _tokenStorage.clear();
+      rethrow;
     }
+  }
 
-    return AppUser(id: userId, displayName: 'Kirenz User', email: '');
+  Future<AppUser> _getCurrentUser() async {
+    try {
+      final response = await _dio.get<Object?>('/users/me');
+      final body = _asMap(response.data);
+      final envelope = ApiResponse.fromJson<AppUser>(
+        body,
+        (value) => AppUser.fromJson(_asMap(value)),
+      );
+      final user = envelope.data;
+      if (!envelope.success || user == null || user.id == 'unknown-user') {
+        throw ApiException(
+          envelope.message ?? 'Current user response has an invalid shape.',
+          kind: ApiFailureKind.parsing,
+        );
+      }
+      return user;
+    } on ApiException {
+      rethrow;
+    } on DioException catch (error) {
+      final body = _asMap(error.response?.data);
+      throw ApiException(
+        body['message']?.toString() ??
+            error.message ??
+            'Current user request failed.',
+        statusCode: error.response?.statusCode,
+        kind: apiFailureKindForResponse(
+          hasResponse: error.response != null,
+          statusCode: error.response?.statusCode,
+        ),
+      );
+    }
   }
 
   Future<AuthResultDto> _postAuthResult(
@@ -199,6 +245,19 @@ bool isAccessTokenUsable(String? token, {DateTime Function()? now}) {
     ).isAfter(current.toUtc());
   } on FormatException {
     return false;
+  }
+}
+
+String _jwtSubject(String token) {
+  try {
+    final parts = token.split('.');
+    if (parts.length != 3) return '';
+    final payload = jsonDecode(
+      utf8.decode(base64Url.decode(base64Url.normalize(parts[1]))),
+    );
+    return payload is Map ? payload['sub']?.toString() ?? '' : '';
+  } on Object {
+    return '';
   }
 }
 

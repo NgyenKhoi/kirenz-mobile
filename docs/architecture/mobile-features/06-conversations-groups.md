@@ -18,7 +18,7 @@ Depends on Features 02 and 05 plus authenticated chat REST client.
 - Group title uses group name or Group Chat; group avatar currently uses generated fallback.
 - User search is debounced after two characters.
 - Starting direct chat uses get-or-create and avoids inserting duplicate conversation rows.
-- A disabled direct-message permission is a forbidden state; dependency verification failure is a separate backend error and must not be presented as a privacy choice.
+- Direct-message permission comes from `GET /api/privacy/can-message/{receiverId}` and is rechecked by Chat Service. A denied permission is a forbidden state; dependency verification failure is a separate backend error and must not be presented as a privacy choice.
 - Creating a group requires a non-blank name and at least two selected other users.
 - Group settings support rename, add member, make admin, nickname, kick, leave, and delete according to current user role.
 - Kick/delete/leave use confirmations.
@@ -69,6 +69,7 @@ Backend gaps/decisions:
 - No group-avatar upload contract.
 - No direct-conversation delete/rename by design.
 - When the last admin leaves or is removed, backend promotes the first remaining participant. Mobile reconciles from the next canonical conversation/list event and must not choose an admin itself.
+- `ParticipantInfo.allowDirectMessages` is nullable and is not populated by the current Identity Service profile projection. It is not authoritative for composer availability.
 
 ## Conversation List
 
@@ -90,8 +91,8 @@ Realtime user-queue events update last message, time, unread count, and ordering
 
 1. Open new-message search.
 2. Search after two characters with debounce.
-3. Filter/label blocked or DM-disallowed users according to returned state.
-4. Tap result -> call get-or-create.
+3. Filter blocked relationship states from search. Search itself does not carry DM permission.
+4. Tap result -> resolve `/privacy/can-message/{receiverId}` or call get-or-create and retain the distinct denied/dependency-error response.
 5. Insert only if id is absent.
 6. Navigate to detail.
 
