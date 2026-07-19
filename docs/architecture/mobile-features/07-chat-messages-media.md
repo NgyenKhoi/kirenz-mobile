@@ -44,6 +44,7 @@ Current reliability gap:
 | Mark read | `POST /api/messages/{conversationId}/read`. |
 | Upload | Multipart `POST /api/media/chat`, one file per request. |
 | Send | STOMP publish `/app/chat.send` with conversationId/content/attachments. |
+| Direct permission | `GET /api/privacy/can-message/{receiverId}`; Chat Service revalidates the same rule for every direct-message publish. |
 
 Exact upload response:
 
@@ -82,6 +83,8 @@ ConversationUpdateMessage { conversationId, conversationName, lastMessage, unrea
 Attachment `metadata` is an open map. The mobile-owned keys required for current rendering are `width`, `height`, `format`, `bytes`, `name`, and `contentType`; unknown keys must be tolerated.
 
 No message edit/delete/retry acknowledgement/read-receipt endpoint currently exists.
+
+For a direct conversation, load canonical permission when the detail opens. `false` disables text, attachment selection, and Send while preserving the draft. A permission lookup failure is an unavailable/dependency error, not a privacy denial. Even after a `true` result, a later publish can be rejected because friendship/privacy changed; surface the sanitized STOMP application error and reconcile permission rather than claiming the message was sent.
 
 ## Message Detail Layout
 

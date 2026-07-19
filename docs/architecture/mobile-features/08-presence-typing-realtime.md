@@ -14,6 +14,7 @@ Depends on Features 01 and 06. It provides the connection interface required by 
 ## Current Web Behavior To Preserve
 
 - Chat connects using SockJS + STOMP through `/ws/chat` with Bearer token in CONNECT headers.
+- The current web/server pairing uses 4-second incoming/outgoing STOMP heartbeats.
 - Subscriptions are restored after reconnect.
 - User queue updates conversation last message/unread/order.
 - Open conversation subscribes to full message and typing topics.
@@ -76,6 +77,8 @@ Before feature implementation is considered usable:
 2. If it requires native WebSocket, backend must expose a native STOMP endpoint. Do not point a raw WebSocket client at a SockJS base URL and assume compatibility.
 3. Verify Bearer CONNECT headers, Gateway rewrite, heartbeat, reconnect, and token replacement on Android/iOS.
 4. Store the final HTTP/HTTPS and WS/WSS construction in environment config.
+
+Current source decision: `stomp_dart_client` must use `StompConfig.sockJS` against the HTTP(S) Gateway URL ending in `/ws/chat`; the Gateway rewrites that route to Chat Service `/ws`. Do not convert the SockJS base URL to a raw `ws://.../ws/chat` URL. Use 4-second STOMP heartbeats to match the current web client, with package reconnect disabled when the account-scoped manager owns backoff.
 
 This is a backend/integration decision, not a visual client workaround.
 
@@ -176,6 +179,7 @@ Remote:
 - Disconnected shows Reconnecting and disables network send while preserving draft.
 - Persistent failure exposes Retry; cached reading remains available.
 - Do not show raw STOMP frames/errors.
+- STOMP application errors after connection are distinct from transport disconnects. Expose only a sanitized operation error to the active feature; do not tear down a healthy socket solely because a publish was rejected by business rules.
 
 ## Behavior Completion Checklist
 
