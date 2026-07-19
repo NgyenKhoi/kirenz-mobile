@@ -24,6 +24,41 @@ class PrivacyRepository {
     () => _dio.put<Object?>('/privacy/me', data: settings.toUpdateJson()),
   );
 
+  Future<bool> canSendDirectMessage(String receiverId) async {
+    try {
+      final response = await _dio.get<Object?>(
+        '/privacy/can-message/$receiverId',
+      );
+      final body = _asMap(response.data);
+      final envelope = ApiResponse.fromJson<bool>(body, (value) {
+        if (value is! bool) {
+          throw const ApiException(
+            'Direct-message permission response has an invalid shape.',
+            kind: ApiFailureKind.parsing,
+          );
+        }
+        return value;
+      });
+      if (!envelope.success || envelope.data == null) {
+        throw ApiException(
+          envelope.message ?? 'Direct-message permission request failed.',
+        );
+      }
+      return envelope.data!;
+    } on ApiException {
+      rethrow;
+    } on DioException catch (error) {
+      throw ApiException(
+        _errorMessage(error),
+        statusCode: error.response?.statusCode,
+        kind: apiFailureKindForResponse(
+          hasResponse: error.response != null,
+          statusCode: error.response?.statusCode,
+        ),
+      );
+    }
+  }
+
   Future<PrivacySettings> _read(
     Future<Response<Object?>> Function() request,
   ) async {

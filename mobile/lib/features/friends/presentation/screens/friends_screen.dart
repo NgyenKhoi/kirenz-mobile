@@ -9,7 +9,9 @@ import '../../domain/entities/friend_models.dart';
 import '../controllers/friends_controller.dart';
 
 class FriendsScreen extends ConsumerStatefulWidget {
-  const FriendsScreen({super.key});
+  const FriendsScreen({this.initialSegment, super.key});
+
+  final String? initialSegment;
 
   @override
   ConsumerState<FriendsScreen> createState() => _FriendsScreenState();
@@ -30,7 +32,13 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
+      key: ValueKey(widget.initialSegment),
       length: 3,
+      initialIndex: switch (widget.initialSegment) {
+        'suggestions' => 1,
+        'friends' => 2,
+        _ => 0,
+      },
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Friends'),

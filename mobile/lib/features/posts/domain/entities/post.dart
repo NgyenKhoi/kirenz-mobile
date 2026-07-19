@@ -29,6 +29,13 @@ class PostAuthor {
   final String? avatarUrl;
 
   String get resolvedName => displayName ?? username ?? 'Kirenz User';
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'username': username,
+    'displayName': displayName,
+    'avatarUrl': avatarUrl,
+  };
 }
 
 class PostMedia {
@@ -49,6 +56,12 @@ class PostMedia {
   final PostMediaType type;
   final String url;
   final String? publicId;
+
+  Map<String, dynamic> toJson() => {
+    'type': type.wireName,
+    'url': url,
+    'publicId': publicId,
+  };
 }
 
 class SharedPost {
@@ -86,6 +99,16 @@ class SharedPost {
   final List<PostMedia> media;
   final bool available;
   final DateTime? createdAt;
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'author': author?.toJson(),
+    'content': content,
+    'privacy': privacy?.wireName,
+    'media': media.map((item) => item.toJson()).toList(growable: false),
+    'available': available,
+    'createdAt': createdAt?.toUtc().toIso8601String(),
+  };
 }
 
 class PostReactionSummary {
@@ -112,6 +135,14 @@ class PostReactionSummary {
   final int totalCount;
   final ReactionType? currentUserReaction;
   final Map<ReactionType, int> breakdown;
+
+  Map<String, dynamic> toJson() => {
+    'totalCount': totalCount,
+    'currentUserReaction': currentUserReaction?.wireName,
+    'breakdown': {
+      for (final entry in breakdown.entries) entry.key.wireName: entry.value,
+    },
+  };
 }
 
 class Post {
@@ -187,6 +218,78 @@ class Post {
   final PostStatus status;
   final DateTime? createdAt;
   final DateTime? updatedAt;
+
+  Post copyWith({
+    int? reactionsCount,
+    PostReactionSummary? reactionSummary,
+    int? commentsCount,
+  }) => Post(
+    id: id,
+    slug: slug,
+    author: author,
+    content: content,
+    privacy: privacy,
+    originalPostId: originalPostId,
+    sharedPost: sharedPost,
+    media: media,
+    taggedUserIds: taggedUserIds,
+    taggedUsers: taggedUsers,
+    reactionsCount: reactionsCount ?? this.reactionsCount,
+    reactionSummary: reactionSummary ?? this.reactionSummary,
+    commentsCount: commentsCount ?? this.commentsCount,
+    status: status,
+    createdAt: createdAt,
+    updatedAt: updatedAt,
+  );
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'slug': slug,
+    'author': author.toJson(),
+    'content': content,
+    'privacy': privacy.wireName,
+    'originalPostId': originalPostId,
+    'sharedPost': sharedPost?.toJson(),
+    'media': media.map((item) => item.toJson()).toList(growable: false),
+    'taggedUserIds': taggedUserIds,
+    'taggedUsers': taggedUsers
+        .map((item) => item.toJson())
+        .toList(growable: false),
+    'reactionsCount': reactionsCount,
+    'reactionSummary': reactionSummary.toJson(),
+    'commentsCount': commentsCount,
+    'status': status.wireName,
+    'createdAt': createdAt?.toUtc().toIso8601String(),
+    'updatedAt': updatedAt?.toUtc().toIso8601String(),
+  };
+}
+
+extension PostPrivacyWire on PostPrivacy {
+  String get wireName => switch (this) {
+    PostPrivacy.public => 'PUBLIC',
+    PostPrivacy.friends => 'FRIENDS',
+    PostPrivacy.onlyMe => 'ONLY_ME',
+  };
+}
+
+extension PostStatusWire on PostStatus {
+  String get wireName => switch (this) {
+    PostStatus.active => 'ACTIVE',
+    PostStatus.inactive => 'INACTIVE',
+    PostStatus.deleted => 'DELETED',
+  };
+}
+
+extension PostMediaTypeWire on PostMediaType {
+  String get wireName => switch (this) {
+    PostMediaType.image => 'IMAGE',
+    PostMediaType.video => 'VIDEO',
+    PostMediaType.file => 'FILE',
+  };
+}
+
+extension ReactionTypeWire on ReactionType {
+  String get wireName => name.toUpperCase();
 }
 
 Map<String, dynamic> _map(Object? value) {
