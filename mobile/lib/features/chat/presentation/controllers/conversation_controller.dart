@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/repositories/conversation_repository.dart';
 import '../../data/cache/conversation_cache.dart';
 import '../../domain/entities/conversation.dart';
+import '../../domain/entities/realtime_chat.dart';
 
 final conversationControllerProvider =
     AsyncNotifierProvider<ConversationController, List<Conversation>>(
@@ -103,6 +104,28 @@ class ConversationController extends AsyncNotifier<List<Conversation>> {
         .getConversation(conversationId);
     _replace(conversation);
     return conversation;
+  }
+
+  Future<void> applyRealtimeUpdate(ConversationRealtimeUpdate update) async {
+    final conversation = byId(update.conversationId);
+    if (conversation == null) {
+      await refresh();
+      return;
+    }
+    _replace(
+      conversation.copyWith(
+        lastMessage: update.lastMessage,
+        clearLastMessage: update.lastMessage == null,
+        updatedAt: update.updatedAt,
+        unreadCount: update.unreadCount,
+      ),
+    );
+  }
+
+  void markReadLocally(String conversationId) {
+    final conversation = byId(conversationId);
+    if (conversation == null || conversation.unreadCount == 0) return;
+    _replace(conversation.copyWith(unreadCount: 0));
   }
 
   Future<Conversation> renameGroup(String conversationId, String name) =>

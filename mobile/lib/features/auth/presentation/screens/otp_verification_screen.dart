@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../controllers/otp_controller.dart';
+import '../controllers/session_controller.dart';
 
 class OtpVerificationScreen extends ConsumerStatefulWidget {
   const OtpVerificationScreen({
@@ -78,10 +79,7 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
 
     ref.listen(otpControllerProvider(_arguments), (previous, next) {
       if (next.verified && previous?.verified != true) {
-        final parameters = <String, String>{};
-        final intended = widget.intendedDestination;
-        if (intended != null) parameters['redirect'] = intended;
-        context.go(Uri(path: '/login', queryParameters: parameters).toString());
+        unawaited(_completeVerification());
       }
     });
 
@@ -218,6 +216,23 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
       _autoSubmitted = false;
       _codeFocusNode.requestFocus();
     }
+  }
+
+  Future<void> _completeVerification() async {
+    await ref.read(sessionControllerProvider.notifier).restoreSession();
+    if (!mounted) return;
+    final session = ref.read(sessionControllerProvider);
+    if (session.isAuthenticated) {
+      final intended = widget.intendedDestination;
+      context.go(
+        intended != null && intended.startsWith('/') ? intended : '/home',
+      );
+      return;
+    }
+    final parameters = <String, String>{};
+    final intended = widget.intendedDestination;
+    if (intended != null) parameters['redirect'] = intended;
+    context.go(Uri(path: '/login', queryParameters: parameters).toString());
   }
 }
 

@@ -8,6 +8,7 @@ import '../../data/repositories/auth_repository.dart';
 import '../../data/services/google_auth_client.dart';
 import '../../domain/entities/app_user.dart';
 import 'session_cleanup.dart';
+import '../../../chat/presentation/controllers/chat_realtime_controller.dart';
 
 final sessionControllerProvider =
     StateNotifierProvider<SessionController, SessionState>((ref) {
@@ -15,7 +16,9 @@ final sessionControllerProvider =
         ref.watch(authRepositoryProvider),
         googleAuthClient: ref.watch(googleAuthClientProvider),
         cleanup: ref.watch(sessionCleanupProvider),
-        connectRealtime: () async {},
+        connectRealtime: ref
+            .watch(chatRealtimeControllerProvider.notifier)
+            .connect,
       );
       ref.listen<int>(sessionExpirationProvider, (previous, next) {
         if (next > 0 && next != previous) {
@@ -25,7 +28,13 @@ final sessionControllerProvider =
       return controller;
     });
 
-enum SessionStatus { checking, unauthenticated, authenticating, authenticated }
+enum SessionStatus {
+  checking,
+  unauthenticated,
+  authenticating,
+  authenticated,
+  unsupportedRole,
+}
 
 enum AuthPendingAction { passwordLogin, googleLogin, logout }
 
@@ -70,6 +79,13 @@ class SessionState {
       otpEmail = null,
       pendingAction = null;
 
+  const SessionState.unsupportedRole(this.user)
+    : status = SessionStatus.unsupportedRole,
+      errorMessage = null,
+      fieldErrors = const {},
+      otpEmail = null,
+      pendingAction = null;
+
   final SessionStatus status;
   final AppUser? user;
   final String? errorMessage;
@@ -106,8 +122,14 @@ class SessionController extends StateNotifier<SessionState> {
     if (generation != _generation) return;
     state = user == null
         ? const SessionState.unauthenticated()
-        : SessionState.authenticated(user);
-    if (user != null) await _connectRealtime();
+        : !user.emailVerified
+        ? SessionState.unauthenticated(otpEmail: user.email)
+        : user.role == 'USER'
+        ? SessionState.authenticated(user)
+        : SessionState.unsupportedRole(user);
+    if (user?.emailVerified == true && user?.role == 'USER') {
+      await _connectRealtime();
+    }
   }
 
   Future<bool> login({required String email, required String password}) async {
@@ -122,6 +144,14 @@ class SessionController extends StateNotifier<SessionState> {
         password: password,
       );
       if (generation != _generation) return false;
+      if (!user.emailVerified) {
+        state = SessionState.unauthenticated(otpEmail: user.email);
+        return false;
+      }
+      if (user.role != 'USER') {
+        state = SessionState.unsupportedRole(user);
+        return false;
+      }
       state = SessionState.authenticated(user);
       await _connectRealtime();
       return true;
@@ -162,6 +192,14 @@ class SessionController extends StateNotifier<SessionState> {
       }
       final user = await _authRepository.loginWithGoogle(idToken: idToken);
       if (generation != _generation) return false;
+      if (!user.emailVerified) {
+        state = SessionState.unauthenticated(otpEmail: user.email);
+        return false;
+      }
+      if (user.role != 'USER') {
+        state = SessionState.unsupportedRole(user);
+        return false;
+      }
       state = SessionState.authenticated(user);
       await _connectRealtime();
       return true;
@@ -227,7 +265,7 @@ class SessionController extends StateNotifier<SessionState> {
     _generation++;
     final user = state.user;
     state = SessionState(
-      status: SessionStatus.authenticated,
+      status: state.status,
       user: user,
       pendingAction: AuthPendingAction.logout,
     );
