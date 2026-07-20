@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 class KirenzTheme {
   static const _fontFamily = 'Quicksand';
+  static const _fontFamilyFallback = ['Roboto', 'Arial', 'sans-serif'];
 
   static ThemeData get light {
     const colorScheme = ColorScheme(
@@ -84,6 +85,7 @@ class KirenzTheme {
   static ThemeData _base(ColorScheme colorScheme) {
     final textTheme = Typography.material2021().black.apply(
       fontFamily: _fontFamily,
+      fontFamilyFallback: _fontFamilyFallback,
       bodyColor: colorScheme.onSurface,
       displayColor: colorScheme.onSurface,
     );
@@ -92,6 +94,7 @@ class KirenzTheme {
       useMaterial3: true,
       colorScheme: colorScheme,
       fontFamily: _fontFamily,
+      fontFamilyFallback: _fontFamilyFallback,
       textTheme: textTheme,
       scaffoldBackgroundColor: colorScheme.surface,
       appBarTheme: AppBarTheme(
@@ -161,6 +164,8 @@ class KirenzTheme {
         ),
       ),
       navigationBarTheme: NavigationBarThemeData(
+        height: 72,
+        labelBehavior: NavigationDestinationLabelBehavior.onlyShowSelected,
         backgroundColor: colorScheme.surfaceContainerLow,
         indicatorColor: colorScheme.primaryContainer,
         labelTextStyle: WidgetStateProperty.resolveWith(
@@ -186,6 +191,27 @@ class KirenzTheme {
           color: colorScheme.onInverseSurface,
         ),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      ),
+      dividerTheme: DividerThemeData(
+        color: colorScheme.outlineVariant,
+        thickness: 1,
+        space: 1,
+      ),
+      listTileTheme: ListTileThemeData(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        iconColor: colorScheme.onSurfaceVariant,
+      ),
+      bottomSheetTheme: BottomSheetThemeData(
+        backgroundColor: colorScheme.surfaceContainerLowest,
+        showDragHandle: true,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: colorScheme.surfaceContainerLowest,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
       ),
     );
   }

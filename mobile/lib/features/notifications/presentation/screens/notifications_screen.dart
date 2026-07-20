@@ -1,4 +1,3 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -7,6 +6,9 @@ import '../../data/services/local_notification_service.dart';
 import '../../domain/entities/social_notification.dart';
 import '../controllers/notification_controller.dart';
 import '../notification_routing.dart';
+import '../../../../shared/widgets/state_views.dart';
+import '../../../../shared/widgets/user_avatar.dart';
+import '../../../../shared/widgets/content_frame.dart';
 
 class NotificationsScreen extends ConsumerWidget {
   const NotificationsScreen({super.key});
@@ -51,7 +53,8 @@ class NotificationsScreen extends ConsumerWidget {
             ),
         ],
       ),
-      body: RefreshIndicator(
+      body: KirenzContentFrame(
+        child: RefreshIndicator(
         onRefresh: controller.refresh,
         child: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
@@ -107,18 +110,19 @@ class NotificationsScreen extends ConsumerWidget {
             else if (state.listError != null && state.items.isEmpty)
               SliverFillRemaining(
                 hasScrollBody: false,
-                child: _EmptyState(
+                child: KirenzStateView(
                   icon: Icons.cloud_off_outlined,
                   title: 'Could not load alerts',
                   message: state.listError!,
-                  action: 'Retry',
+                  actionLabel: 'Retry',
+                  isError: true,
                   onAction: controller.refresh,
                 ),
               )
             else if (state.items.isEmpty)
               const SliverFillRemaining(
                 hasScrollBody: false,
-                child: _EmptyState(
+                child: KirenzStateView(
                   icon: Icons.notifications_none,
                   title: 'You are all caught up',
                   message: 'Friend and social activity will appear here.',
@@ -137,6 +141,7 @@ class NotificationsScreen extends ConsumerWidget {
             ],
           ],
         ),
+      ),
       ),
     );
   }
@@ -217,15 +222,9 @@ class _NotificationRow extends StatelessWidget {
               Stack(
                 clipBehavior: Clip.none,
                 children: [
-                  CircleAvatar(
-                    radius: 24,
-                    backgroundImage:
-                        notification.actorAvatar?.isNotEmpty == true
-                        ? CachedNetworkImageProvider(notification.actorAvatar!)
-                        : null,
-                    child: notification.actorAvatar?.isNotEmpty == true
-                        ? null
-                        : Text(_initials(notification.actorName)),
+                  KirenzUserAvatar(
+                    name: notification.actorName,
+                    imageUrl: notification.actorAvatar,
                   ),
                   Positioned(
                     right: -5,
@@ -519,8 +518,3 @@ String _absoluteTime(DateTime value) {
   return '${local.day}/${local.month}/${local.year} ${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
 }
 
-String _initials(String value) {
-  final parts = value.trim().split(RegExp(r'\s+'));
-  if (parts.isEmpty || parts.first.isEmpty) return 'K';
-  return parts.take(2).map((part) => part[0].toUpperCase()).join();
-}

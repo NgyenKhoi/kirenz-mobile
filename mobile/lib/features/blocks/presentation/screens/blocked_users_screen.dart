@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../shared/widgets/state_views.dart';
+import '../../../../shared/widgets/user_avatar.dart';
 import '../../domain/entities/block_models.dart';
 import '../controllers/block_controller.dart';
 
@@ -14,13 +16,20 @@ class BlockedUsersScreen extends ConsumerWidget {
       appBar: AppBar(title: const Text('Blocked users')),
       body: SafeArea(
         child: users.when(
-          loading: () => const _BlockedSkeleton(),
-          error: (error, stack) => _BlockedError(
+          loading: () => const KirenzSkeletonList(itemHeight: 92),
+          error: (error, stack) => KirenzStateView(
+            icon: Icons.cloud_off_outlined,
+            title: 'Could not load blocked users',
             message: error.toString(),
-            onRetry: () => ref.invalidate(blockedUsersProvider),
+            actionLabel: 'Retry',
+            isError: true,
+            onAction: () => ref.invalidate(blockedUsersProvider),
           ),
           data: (items) => items.isEmpty
-              ? const _BlockedEmpty()
+              ? const KirenzStateView(
+                  icon: Icons.shield_outlined,
+                  title: 'You have not blocked anyone',
+                )
               : RefreshIndicator(
                   onRefresh: () async =>
                       ref.refresh(blockedUsersProvider.future),
@@ -51,7 +60,10 @@ class _BlockedUserTile extends ConsumerWidget {
         .contains(record.blockedUserId);
     return Card(
       child: ListTile(
-        leading: const CircleAvatar(child: Icon(Icons.person_off_outlined)),
+        leading: KirenzUserAvatar(
+          name: record.blockedUserId,
+          icon: Icons.person_off_outlined,
+        ),
         title: const Text(
           'Blocked user',
           style: TextStyle(fontWeight: FontWeight.w800),
@@ -79,7 +91,7 @@ class _BlockedUserTile extends ConsumerWidget {
       builder: (dialogContext) => AlertDialog(
         title: Text('Unblock ${record.blockedUserId}?'),
         content: const Text(
-          'Visibility and interactions will again depend on both users’ privacy settings.',
+          'Visibility and interactions will again depend on both users\' privacy settings.',
         ),
         actions: [
           TextButton(
@@ -106,67 +118,6 @@ class _BlockedUserTile extends ConsumerWidget {
       }
     }
   }
-}
-
-class _BlockedSkeleton extends StatelessWidget {
-  const _BlockedSkeleton();
-  @override
-  Widget build(BuildContext context) => ListView.separated(
-    padding: const EdgeInsets.all(16),
-    itemCount: 5,
-    separatorBuilder: (context, index) => const SizedBox(height: 12),
-    itemBuilder: (context, index) => Container(
-      height: 92,
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(24),
-      ),
-    ),
-  );
-}
-
-class _BlockedEmpty extends StatelessWidget {
-  const _BlockedEmpty();
-  @override
-  Widget build(BuildContext context) => const Center(
-    child: Padding(
-      padding: EdgeInsets.all(24),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.shield_outlined, size: 48),
-          SizedBox(height: 12),
-          Text('You have not blocked anyone'),
-        ],
-      ),
-    ),
-  );
-}
-
-class _BlockedError extends StatelessWidget {
-  const _BlockedError({required this.message, required this.onRetry});
-  final String message;
-  final VoidCallback onRetry;
-  @override
-  Widget build(BuildContext context) => Center(
-    child: Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            Icons.cloud_off_outlined,
-            size: 48,
-            color: Theme.of(context).colorScheme.error,
-          ),
-          const SizedBox(height: 12),
-          Text(message, textAlign: TextAlign.center),
-          const SizedBox(height: 16),
-          FilledButton(onPressed: onRetry, child: const Text('Retry')),
-        ],
-      ),
-    ),
-  );
 }
 
 String _date(DateTime? value) {

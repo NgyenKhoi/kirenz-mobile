@@ -265,6 +265,10 @@ class MessageController extends StateNotifier<MessageState> {
     }
   }
 
+  void reportAttachmentError(String message) {
+    state = state.copyWith(attachmentError: message);
+  }
+
   Future<void> uploadAttachment(String path) async {
     final file = state.attachments
         .where((item) => item.path == path)

@@ -1,6 +1,5 @@
 import 'dart:io';
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -13,6 +12,9 @@ import '../../../posts/domain/entities/post_draft.dart';
 import '../../../posts/data/repositories/post_repository.dart';
 import '../../../posts/presentation/controllers/post_composer_controller.dart';
 import '../../../posts/presentation/widgets/post_card.dart';
+import '../../../../shared/widgets/state_views.dart';
+import '../../../../shared/widgets/user_avatar.dart';
+import '../../../../shared/widgets/content_frame.dart';
 import '../controllers/feed_controller.dart';
 
 class FeedScreen extends ConsumerWidget {
@@ -35,7 +37,8 @@ class FeedScreen extends ConsumerWidget {
         onPressed: () => _openComposer(context, ref),
         child: const Icon(Icons.edit_outlined),
       ),
-      body: RefreshIndicator(
+      body: KirenzContentFrame(
+        child: RefreshIndicator(
         onRefresh: () => controller.load(refresh: true),
         child: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
@@ -85,11 +88,12 @@ class FeedScreen extends ConsumerWidget {
             else if (state.error != null && state.posts.isEmpty)
               SliverFillRemaining(
                 hasScrollBody: false,
-                child: _FeedEmpty(
+                child: KirenzStateView(
                   icon: Icons.cloud_off_outlined,
                   title: 'Could not load posts',
                   message: state.error!,
-                  action: 'Retry',
+                  actionLabel: 'Retry',
+                  isError: true,
                   onAction: controller.load,
                 ),
               )
@@ -144,6 +148,7 @@ class FeedScreen extends ConsumerWidget {
           ],
         ),
       ),
+      ),
     );
   }
 
@@ -178,14 +183,7 @@ class _CreateEntry extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       child: Row(
         children: [
-          CircleAvatar(
-            backgroundImage: avatarUrl?.isNotEmpty == true
-                ? CachedNetworkImageProvider(avatarUrl!)
-                : null,
-            child: avatarUrl?.isNotEmpty == true
-                ? null
-                : Text(name.isEmpty ? 'K' : name[0].toUpperCase()),
-          ),
+          KirenzUserAvatar(name: name, imageUrl: avatarUrl),
           const SizedBox(width: 12),
           Expanded(
             child: OutlinedButton(
