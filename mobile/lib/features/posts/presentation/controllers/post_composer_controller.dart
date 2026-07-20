@@ -61,11 +61,8 @@ class PostComposerController extends StateNotifier<PostComposerState> {
   void updatePrivacy(PostPrivacy value) =>
       state = state.copyWith(privacy: value, clearError: true);
 
-  void toggleTaggedUser(String userId) {
-    final next = {...state.taggedUserIds};
-    next.contains(userId) ? next.remove(userId) : next.add(userId);
-    state = state.copyWith(taggedUserIds: next, clearError: true);
-  }
+  void updateTaggedUserIds(Set<String> userIds) =>
+      state = state.copyWith(taggedUserIds: userIds, clearError: true);
 
   void addImages(Iterable<PostDraftImage> selected) {
     final next = [...state.images];

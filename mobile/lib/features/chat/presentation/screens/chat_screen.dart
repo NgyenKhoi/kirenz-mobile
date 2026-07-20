@@ -12,79 +12,200 @@ import '../../domain/entities/conversation.dart';
 import '../../domain/entities/realtime_chat.dart';
 import '../controllers/conversation_controller.dart';
 import '../controllers/chat_realtime_controller.dart';
+import '../../../../shared/widgets/user_avatar.dart';
 
-class ChatScreen extends ConsumerWidget {
+class ChatScreen extends ConsumerStatefulWidget {
   const ChatScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ChatScreen> createState() => _ChatScreenState();
+}
+
+class _ChatScreenState extends ConsumerState<ChatScreen> {
+  final _search = TextEditingController();
+  final _scroll = ScrollController();
+  bool _searching = false;
+  bool _showFab = true;
+  double _lastOffset = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _scroll.addListener(_handleScroll);
+  }
+
+  @override
+  void dispose() {
+    _scroll
+      ..removeListener(_handleScroll)
+      ..dispose();
+    _search.dispose();
+    super.dispose();
+  }
+
+  void _handleScroll() {
+    final offset = _scroll.offset;
+    final next = offset <= 24 || offset < _lastOffset;
+    if (next != _showFab) setState(() => _showFab = next);
+    _lastOffset = offset;
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final conversations = ref.watch(conversationControllerProvider);
     final cachedAt = ref.watch(conversationCacheStatusProvider);
-    final currentUserId = ref.watch(sessionControllerProvider).user?.id;
+    final currentUser = ref.watch(sessionControllerProvider).user;
+    final currentUserId = currentUser?.id;
     final realtime = ref.watch(chatRealtimeControllerProvider);
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Chat'),
+        toolbarHeight: 72,
+        titleSpacing: 16,
+        title: AnimatedSwitcher(
+          duration: MediaQuery.disableAnimationsOf(context)
+              ? Duration.zero
+              : const Duration(milliseconds: 180),
+          child: _searching
+              ? TextField(
+                  key: const ValueKey('chat-search'),
+                  controller: _search,
+                  autofocus: true,
+                  textInputAction: TextInputAction.search,
+                  decoration: const InputDecoration(
+                    hintText: 'Search conversations',
+                    prefixIcon: Icon(Icons.search_rounded),
+                  ),
+                  onChanged: (_) => setState(() {}),
+                )
+              : Row(
+                  key: const ValueKey('chat-title'),
+                  children: [
+                    KirenzUserAvatar(
+                      name: currentUser?.displayName ?? 'Kirenz user',
+                      imageUrl: currentUser?.avatarUrl,
+                      radius: 21,
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      'Chats',
+                      style: Theme.of(context).textTheme.headlineSmall
+                          ?.copyWith(fontWeight: FontWeight.w800),
+                    ),
+                  ],
+                ),
+        ),
         actions: [
           IconButton(
-            tooltip: 'New message',
-            onPressed: () => _showDirectSearch(context),
-            icon: const Icon(Icons.edit_square),
+            tooltip: _searching ? 'Close search' : 'Search conversations',
+            onPressed: () => setState(() {
+              _searching = !_searching;
+              if (!_searching) _search.clear();
+            }),
+            icon: Icon(_searching ? Icons.close_rounded : Icons.search_rounded),
           ),
+          const SizedBox(width: 4),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showCreateGroup(context),
-        icon: const Icon(Icons.group_add_outlined),
-        label: const Text('New group'),
+      floatingActionButton: AnimatedScale(
+        scale: _showFab ? 1 : 0,
+        duration: MediaQuery.disableAnimationsOf(context)
+            ? Duration.zero
+            : const Duration(milliseconds: 180),
+        curve: Curves.easeOutCubic,
+        child: FloatingActionButton.extended(
+          tooltip: 'New message',
+          onPressed: () => _showComposeActions(context),
+          icon: const Icon(Icons.edit_rounded),
+          label: const Text('New message'),
+        ),
       ),
       body: conversations.when(
         skipLoadingOnRefresh: true,
         skipError: true,
-        data: (rows) => Column(
-          children: [
-            if (realtime.status == ChatConnectionStatus.reconnecting ||
-                realtime.status == ChatConnectionStatus.disconnected)
-              const _RealtimeListNotice(message: 'Reconnecting…'),
-            if (realtime.status == ChatConnectionStatus.failed)
-              _RealtimeListNotice(
-                message: 'Live updates unavailable',
-                onRetry: () =>
-                    ref.read(chatRealtimeControllerProvider.notifier).retry(),
-              ),
-            if (cachedAt != null) const _OfflineNotice(),
-            if (conversations.hasError) const _RefreshErrorNotice(),
-            Expanded(
-              child: RefreshIndicator(
-                onRefresh: () =>
-                    ref.read(conversationControllerProvider.notifier).refresh(),
-                child: rows.isEmpty
-                    ? ListView(
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        children: const [
-                          SizedBox(height: 160),
-                          Icon(Icons.forum_outlined, size: 56),
-                          SizedBox(height: 16),
-                          Center(child: Text('No conversations yet')),
-                          SizedBox(height: 8),
-                          Center(
-                            child: Text('Start a message or create a group.'),
+        data: (rows) {
+          final query = _search.text.trim().toLowerCase();
+          final visible = query.isEmpty
+              ? rows
+              : rows
+                    .where(
+                      (conversation) =>
+                          conversation
+                              .titleFor(currentUserId)
+                              .toLowerCase()
+                              .contains(query) ||
+                          conversation
+                              .previewFor(currentUserId)
+                              .toLowerCase()
+                              .contains(query),
+                    )
+                    .toList(growable: false);
+          return Column(
+            children: [
+              if (realtime.status == ChatConnectionStatus.reconnecting ||
+                  realtime.status == ChatConnectionStatus.disconnected)
+                const _RealtimeListNotice(message: 'Reconnecting…'),
+              if (realtime.status == ChatConnectionStatus.failed)
+                _RealtimeListNotice(
+                  message: 'Live updates unavailable',
+                  onRetry: () =>
+                      ref.read(chatRealtimeControllerProvider.notifier).retry(),
+                ),
+              if (cachedAt != null) const _OfflineNotice(),
+              if (conversations.hasError) const _RefreshErrorNotice(),
+              Expanded(
+                child: RefreshIndicator(
+                  onRefresh: () => ref
+                      .read(conversationControllerProvider.notifier)
+                      .refresh(),
+                  child: visible.isEmpty
+                      ? ListView(
+                          controller: _scroll,
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          padding: const EdgeInsets.symmetric(horizontal: 24),
+                          children: [
+                            const SizedBox(height: 144),
+                            Icon(
+                              query.isEmpty
+                                  ? Icons.forum_outlined
+                                  : Icons.search_off_rounded,
+                              size: 56,
+                            ),
+                            const SizedBox(height: 16),
+                            Center(
+                              child: Text(
+                                query.isEmpty
+                                    ? 'No conversations yet'
+                                    : 'No conversations found',
+                                style: Theme.of(context).textTheme.titleMedium
+                                    ?.copyWith(fontWeight: FontWeight.w800),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Center(
+                              child: Text(
+                                query.isEmpty
+                                    ? 'Start a message or create a group.'
+                                    : 'Try a different name or message.',
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                          ],
+                        )
+                      : ListView.builder(
+                          controller: _scroll,
+                          padding: const EdgeInsets.fromLTRB(16, 12, 16, 112),
+                          itemCount: visible.length,
+                          itemBuilder: (context, index) => _ConversationTile(
+                            conversation: visible[index],
+                            currentUserId: currentUserId,
+                            presence: realtime.presence,
                           ),
-                        ],
-                      )
-                    : ListView.separated(
-                        itemCount: rows.length,
-                        separatorBuilder: (_, _) => const Divider(height: 1),
-                        itemBuilder: (context, index) => _ConversationTile(
-                          conversation: rows[index],
-                          currentUserId: currentUserId,
-                          presence: realtime.presence,
                         ),
-                      ),
+                ),
               ),
-            ),
-          ],
-        ),
+            ],
+          );
+        },
         loading: () => const _ConversationSkeleton(),
         error: (error, stackTrace) => _ConversationError(
           message: error.toString(),
@@ -166,44 +287,122 @@ class _ConversationTile extends StatelessWidget {
         : null;
     final isOnline =
         otherUser != null && presence[otherUser.userId]?.isOnline == true;
-    return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      leading: Semantics(
-        label: isOnline ? '$title, Online' : title,
-        child: Badge(
-          isLabelVisible: isOnline,
-          backgroundColor: Colors.green,
-          smallSize: 10,
-          child: _ConversationAvatar(
-            conversation: conversation,
-            currentUserId: currentUserId,
-            title: title,
+    final unread = conversation.unreadCount > 0;
+    final colors = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Material(
+        color: unread ? colors.surfaceContainerLowest : Colors.transparent,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () => context.push('/chat/${conversation.id}'),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              children: [
+                Semantics(
+                  label: isOnline ? '$title, Online' : title,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      _ConversationAvatar(
+                        conversation: conversation,
+                        currentUserId: currentUserId,
+                        title: title,
+                        size: 56,
+                      ),
+                      if (isOnline)
+                        Positioned(
+                          right: 1,
+                          bottom: 1,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF22C55E),
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: colors.surfaceContainerLowest,
+                                width: 2,
+                              ),
+                            ),
+                            child: const SizedBox.square(dimension: 13),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.baseline,
+                        textBaseline: TextBaseline.alphabetic,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.titleMedium
+                                  ?.copyWith(
+                                    fontWeight: unread
+                                        ? FontWeight.w800
+                                        : FontWeight.w700,
+                                  ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            _formatConversationTime(
+                              conversation.lastMessage?.sentAt ??
+                                  conversation.updatedAt,
+                            ),
+                            style: Theme.of(context).textTheme.labelSmall
+                                ?.copyWith(color: colors.outline),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 3),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              conversation.previewFor(currentUserId),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(
+                                    color: unread
+                                        ? colors.onSurfaceVariant
+                                        : colors.outline,
+                                    fontWeight: unread
+                                        ? FontWeight.w600
+                                        : FontWeight.w500,
+                                  ),
+                            ),
+                          ),
+                          if (unread) ...[
+                            const SizedBox(width: 10),
+                            Badge(
+                              label: Text(
+                                conversation.unreadCount > 99
+                                    ? '99+'
+                                    : '${conversation.unreadCount}',
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
-      title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
-      subtitle: Text(
-        conversation.previewFor(currentUserId),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-      ),
-      trailing: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          Text(
-            _formatConversationTime(
-              conversation.lastMessage?.sentAt ?? conversation.updatedAt,
-            ),
-            style: Theme.of(context).textTheme.labelSmall,
-          ),
-          if (conversation.unreadCount > 0) ...[
-            const SizedBox(height: 4),
-            Badge(label: Text('${conversation.unreadCount}')),
-          ],
-        ],
-      ),
-      onTap: () => context.push('/chat/${conversation.id}'),
     );
   }
 }
@@ -213,11 +412,13 @@ class _ConversationAvatar extends StatelessWidget {
     required this.conversation,
     required this.currentUserId,
     required this.title,
+    this.size = 40,
   });
 
   final Conversation conversation;
   final String? currentUserId;
   final String title;
+  final double size;
 
   @override
   Widget build(BuildContext context) {
@@ -226,11 +427,17 @@ class _ConversationAvatar extends StatelessWidget {
         .take(2)
         .toList();
     if (conversation.type == ConversationType.direct) {
-      return _PersonAvatar(person: people.firstOrNull, fallback: title);
+      return _PersonAvatar(
+        person: people.firstOrNull,
+        fallback: title,
+        radius: size / 2,
+      );
     }
-    if (people.isEmpty) return CircleAvatar(child: Text(_initials(title)));
+    if (people.isEmpty) {
+      return CircleAvatar(radius: size / 2, child: Text(_initials(title)));
+    }
     return SizedBox.square(
-      dimension: 40,
+      dimension: size,
       child: Stack(
         children: [
           Align(
@@ -238,7 +445,7 @@ class _ConversationAvatar extends StatelessWidget {
             child: _PersonAvatar(
               person: people.first,
               fallback: title,
-              radius: 14,
+              radius: size * .34,
             ),
           ),
           if (people.length > 1)
@@ -247,7 +454,7 @@ class _ConversationAvatar extends StatelessWidget {
               child: _PersonAvatar(
                 person: people[1],
                 fallback: title,
-                radius: 14,
+                radius: size * .34,
               ),
             ),
         ],
@@ -299,18 +506,42 @@ class _ConversationSkeleton extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = Theme.of(context).colorScheme.surfaceContainerHigh;
     return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 112),
       itemCount: 7,
-      itemBuilder: (context, index) => ListTile(
-        leading: CircleAvatar(backgroundColor: color),
-        title: FractionallySizedBox(
-          widthFactor: .55,
-          alignment: Alignment.centerLeft,
-          child: Container(height: 14, color: color),
-        ),
-        subtitle: Container(
-          height: 12,
-          margin: const EdgeInsets.only(top: 8),
-          color: color,
+      itemBuilder: (context, index) => Padding(
+        padding: const EdgeInsets.only(bottom: 4),
+        child: Container(
+          height: 80,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: index.isEven
+                ? Theme.of(context).colorScheme.surfaceContainerLowest
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(18),
+          ),
+          child: Row(
+            children: [
+              CircleAvatar(radius: 28, backgroundColor: color),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    FractionallySizedBox(
+                      widthFactor: .55,
+                      child: Container(height: 14, color: color),
+                    ),
+                    const SizedBox(height: 9),
+                    FractionallySizedBox(
+                      widthFactor: .86,
+                      child: Container(height: 12, color: color),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -340,6 +571,51 @@ class _ConversationError extends StatelessWidget {
     ),
   );
 }
+
+Future<void> _showComposeActions(BuildContext context) =>
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(8, 0, 8, 12),
+                child: Text(
+                  'Start a conversation',
+                  style: Theme.of(
+                    sheetContext,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+                ),
+              ),
+              ListTile(
+                leading: const Icon(Icons.person_add_alt_1_rounded),
+                title: const Text('New direct message'),
+                subtitle: const Text('Find someone and start chatting'),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _showDirectSearch(context);
+                },
+              ),
+              const SizedBox(height: 4),
+              ListTile(
+                leading: const Icon(Icons.group_add_rounded),
+                title: const Text('Create a group'),
+                subtitle: const Text('Bring several people together'),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _showCreateGroup(context);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
 
 Future<void> _showDirectSearch(BuildContext context) =>
     showModalBottomSheet<void>(

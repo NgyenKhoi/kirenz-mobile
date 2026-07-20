@@ -30,7 +30,6 @@ class CommentState {
     this.replyTarget,
     this.sending = false,
     this.pendingIds = const {},
-    this.taggedUserIds = const {},
     this.isCached = false,
     this.cachedAt,
     this.error,
@@ -44,7 +43,6 @@ class CommentState {
   final PostComment? replyTarget;
   final bool sending;
   final Set<String> pendingIds;
-  final Set<String> taggedUserIds;
   final bool isCached;
   final DateTime? cachedAt;
   final String? error;
@@ -59,7 +57,6 @@ class CommentState {
     bool clearReplyTarget = false,
     bool? sending,
     Set<String>? pendingIds,
-    Set<String>? taggedUserIds,
     bool? isCached,
     DateTime? cachedAt,
     bool clearCachedAt = false,
@@ -75,7 +72,6 @@ class CommentState {
     replyTarget: clearReplyTarget ? null : replyTarget ?? this.replyTarget,
     sending: sending ?? this.sending,
     pendingIds: pendingIds ?? this.pendingIds,
-    taggedUserIds: taggedUserIds ?? this.taggedUserIds,
     isCached: isCached ?? this.isCached,
     cachedAt: clearCachedAt ? null : cachedAt ?? this.cachedAt,
     error: clearError ? null : error ?? this.error,
@@ -129,18 +125,6 @@ class CommentController extends StateNotifier<CommentState> {
 
   void cancelReply() => state = state.copyWith(clearReplyTarget: true);
 
-  void toggleTaggedUser(String userId) {
-    final next = {...state.taggedUserIds};
-    next.contains(userId) ? next.remove(userId) : next.add(userId);
-    state = state.copyWith(
-      taggedUserIds: next,
-      clearComposerError: true,
-    );
-  }
-
-  void clearTaggedUsers() =>
-      state = state.copyWith(taggedUserIds: const {});
-
   Future<bool> send() async {
     if (state.sending || state.draft.trim().isEmpty) return false;
     state = state.copyWith(sending: true, clearComposerError: true);
@@ -149,14 +133,12 @@ class CommentController extends StateNotifier<CommentState> {
         postId: postId,
         content: state.draft,
         parentCommentId: state.replyTarget?.id,
-        taggedUserIds: state.taggedUserIds.toList(growable: false),
       );
       state = state.copyWith(
         comments: [...state.comments, created],
         draft: '',
         sending: false,
         clearReplyTarget: true,
-        taggedUserIds: const {},
         isCached: false,
         clearCachedAt: true,
       );

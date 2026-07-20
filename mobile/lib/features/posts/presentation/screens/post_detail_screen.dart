@@ -79,100 +79,109 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
     final post = projected ?? _post;
     final userId = ref.watch(sessionControllerProvider).user?.id;
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       appBar: AppBar(title: const Text('Post')),
-      bottomNavigationBar: post == null
-          ? null
-          : CommentComposer(postId: post.id),
-      body: _loading && post == null
-          ? const KirenzContentFrame(
-              child: KirenzSkeletonList(itemCount: 2, itemHeight: 220),
-            )
-          : post == null
-          ? Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.visibility_off_outlined, size: 48),
-                    const SizedBox(height: 12),
-                    Text(
-                      _error?.toString() ?? 'This post is unavailable.',
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 14),
-                    FilledButton(onPressed: _load, child: const Text('Retry')),
-                  ],
-                ),
-              ),
-            )
-          : KirenzContentFrame(
-              child: RefreshIndicator(
-                onRefresh: _load,
-                child: ListView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.only(top: 8, bottom: 24),
-                  children: [
-                    PostCard(
-                      post: post,
-                      currentUserId: userId,
-                      pending: _pending,
-                      isDetail: true,
-                      onEdit: (content, privacy, media) => _run(() async {
-                        final updated = await ref
-                            .read(postRepositoryProvider)
-                            .update(
-                              postId: post.id,
-                              content: content,
-                              privacy: privacy,
-                              media: media,
-                            );
-                        setState(() => _post = updated);
-                        await ref
-                            .read(feedControllerProvider.notifier)
-                            .reconcileCanonical(updated);
-                      }),
-                      onDelete: () async {
-                        await _run(() async {
-                          await ref
-                              .read(postRepositoryProvider)
-                              .delete(post.id);
-                          await ref
-                              .read(feedControllerProvider.notifier)
-                              .removeCanonical(post.id);
-                          if (!mounted) return;
-                          this.context.pop();
-                        });
-                      },
-                      onShare: (caption) => _run(() async {
-                        final shared = await ref
-                            .read(postRepositoryProvider)
-                            .share(post.id, caption);
-                        await ref
-                            .read(feedControllerProvider.notifier)
-                            .insertCreated(shared);
-                      }),
-                      onReact: _reactPost,
-                      onUploadImage: (image, onProgress) => ref
-                          .read(postRepositoryProvider)
-                          .uploadImage(
-                            image,
-                            onProgress: (sent, total) =>
-                                onProgress(total <= 0 ? 0 : sent / total),
+      body: Column(
+        children: [
+          Expanded(
+            child: _loading && post == null
+                ? const KirenzContentFrame(
+                    child: KirenzSkeletonList(itemCount: 2, itemHeight: 220),
+                  )
+                : post == null
+                ? Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.visibility_off_outlined, size: 48),
+                          const SizedBox(height: 12),
+                          Text(
+                            _error?.toString() ?? 'This post is unavailable.',
+                            textAlign: TextAlign.center,
                           ),
-                    ),
-                    const SizedBox(height: 8),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: DiscussionSection(
-                        postId: post.id,
-                        currentUserId: userId,
+                          const SizedBox(height: 14),
+                          FilledButton(
+                            onPressed: _load,
+                            child: const Text('Retry'),
+                          ),
+                        ],
                       ),
                     ),
-                  ],
-                ),
-              ),
-            ),
+                  )
+                : KirenzContentFrame(
+                    child: RefreshIndicator(
+                      onRefresh: _load,
+                      child: ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.only(top: 8, bottom: 24),
+                        children: [
+                          PostCard(
+                            post: post,
+                            currentUserId: userId,
+                            pending: _pending,
+                            isDetail: true,
+                            onEdit: (content, privacy, media) => _run(() async {
+                              final updated = await ref
+                                  .read(postRepositoryProvider)
+                                  .update(
+                                    postId: post.id,
+                                    content: content,
+                                    privacy: privacy,
+                                    media: media,
+                                  );
+                              setState(() => _post = updated);
+                              await ref
+                                  .read(feedControllerProvider.notifier)
+                                  .reconcileCanonical(updated);
+                            }),
+                            onDelete: () async {
+                              await _run(() async {
+                                await ref
+                                    .read(postRepositoryProvider)
+                                    .delete(post.id);
+                                await ref
+                                    .read(feedControllerProvider.notifier)
+                                    .removeCanonical(post.id);
+                                if (!mounted) return;
+                                this.context.pop();
+                              });
+                            },
+                            onShare: (caption) => _run(() async {
+                              final shared = await ref
+                                  .read(postRepositoryProvider)
+                                  .share(post.id, caption);
+                              await ref
+                                  .read(feedControllerProvider.notifier)
+                                  .insertCreated(shared);
+                            }),
+                            onReact: _reactPost,
+                            onUploadImage: (image, onProgress) => ref
+                                .read(postRepositoryProvider)
+                                .uploadImage(
+                                  image,
+                                  onProgress: (sent, total) =>
+                                      onProgress(total <= 0 ? 0 : sent / total),
+                                ),
+                          ),
+                          const SizedBox(height: 8),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: DiscussionSection(
+                              postId: post.id,
+                              currentUserId: userId,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+          ),
+          if (post != null)
+            KirenzContentFrame(child: CommentComposer(postId: post.id)),
+        ],
+      ),
     );
   }
 

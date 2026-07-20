@@ -97,15 +97,10 @@ class DiscussionRepository {
     required String postId,
     required String content,
     String? parentCommentId,
-    List<String> taggedUserIds = const [],
   }) => _comment(
     () => _dio.post<Object?>(
       '/posts/$postId/comments',
-      data: {
-        'content': content,
-        'parentCommentId': parentCommentId,
-        'taggedUserIds': taggedUserIds,
-      },
+      data: {'content': content, 'parentCommentId': parentCommentId},
     ),
   );
 

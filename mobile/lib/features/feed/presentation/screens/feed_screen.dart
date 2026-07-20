@@ -6,11 +6,13 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../auth/presentation/controllers/session_controller.dart';
+import '../../../friends/domain/entities/friend_models.dart';
 import '../../../friends/presentation/controllers/friends_controller.dart';
 import '../../../posts/domain/entities/post.dart';
 import '../../../posts/domain/entities/post_draft.dart';
 import '../../../posts/data/repositories/post_repository.dart';
 import '../../../posts/presentation/controllers/post_composer_controller.dart';
+import '../../../posts/presentation/mention_query.dart';
 import '../../../posts/presentation/widgets/post_card.dart';
 import '../../../../shared/widgets/state_views.dart';
 import '../../../../shared/widgets/user_avatar.dart';
@@ -214,14 +216,49 @@ class _PostComposerSheet extends ConsumerStatefulWidget {
 
 class _PostComposerSheetState extends ConsumerState<_PostComposerSheet> {
   final _content = TextEditingController();
-  final _tagSearch = TextEditingController();
-  String _tagQuery = '';
+  final Map<String, String> _selectedMentions = {};
+  PostMentionQuery? _mention;
 
   @override
   void dispose() {
     _content.dispose();
-    _tagSearch.dispose();
     super.dispose();
+  }
+
+  void _contentChanged(String value) {
+    final controller = ref.read(postComposerControllerProvider.notifier);
+    controller.updateContent(value);
+    final retained = <String, String>{
+      for (final entry in _selectedMentions.entries)
+        if (value.contains(entry.value)) entry.key: entry.value,
+    };
+    _selectedMentions
+      ..clear()
+      ..addAll(retained);
+    controller.updateTaggedUserIds(retained.keys.toSet());
+    setState(() => _mention = postMentionAtCursor(_content.value));
+  }
+
+  void _selectMention(String userId, String username) {
+    final mention = _mention;
+    if (mention == null) return;
+    final value = _content.value;
+    final token = '@$username';
+    final nextText = value.text.replaceRange(
+      mention.start,
+      mention.end,
+      '$token ',
+    );
+    final cursor = mention.start + token.length + 1;
+    _selectedMentions[userId] = token;
+    _content.value = TextEditingValue(
+      text: nextText,
+      selection: TextSelection.collapsed(offset: cursor),
+    );
+    final controller = ref.read(postComposerControllerProvider.notifier);
+    controller.updateContent(nextText);
+    controller.updateTaggedUserIds(_selectedMentions.keys.toSet());
+    setState(() => _mention = null);
   }
 
   @override
@@ -280,13 +317,19 @@ class _PostComposerSheetState extends ConsumerState<_PostComposerSheet> {
                         minLines: 4,
                         maxLines: 10,
                         autofocus: true,
-                        onChanged: controller.updateContent,
+                        onChanged: _contentChanged,
                         decoration: const InputDecoration(
                           hintText: "What's making you smile?",
                           border: InputBorder.none,
                           filled: false,
                         ),
                       ),
+                      if (_mention != null)
+                        _MentionSuggestions(
+                          friends: friends,
+                          query: _mention!.query,
+                          onSelected: _selectMention,
+                        ),
                       DropdownButtonFormField<PostPrivacy>(
                         initialValue: state.privacy,
                         decoration: const InputDecoration(
@@ -351,107 +394,6 @@ class _PostComposerSheetState extends ConsumerState<_PostComposerSheet> {
                           ),
                         ),
                       ],
-                      const SizedBox(height: 16),
-                      friends.when(
-                        loading: () => const SizedBox(
-                          height: 48,
-                          child: Center(
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          ),
-                        ),
-                        error: (_, _) => const Text(
-                          'Friend tagging is temporarily unavailable.',
-                        ),
-                        data: (items) {
-                          final query = _tagQuery.trim().toLowerCase();
-                          final visible = query.isEmpty
-                              ? items
-                              : items
-                                    .where(
-                                      (friend) =>
-                                          friend.resolvedName
-                                              .toLowerCase()
-                                              .contains(query) ||
-                                          (friend.username ?? '')
-                                              .toLowerCase()
-                                              .contains(query),
-                                    )
-                                    .toList(growable: false);
-                          final selected = items
-                              .where(
-                                (friend) => state.taggedUserIds.contains(
-                                  friend.friendId,
-                                ),
-                              )
-                              .toList(growable: false);
-                          return ExpansionTile(
-                            tilePadding: EdgeInsets.zero,
-                            title: Text(
-                              state.taggedUserIds.isEmpty
-                                  ? 'Tag friends'
-                                  : '${state.taggedUserIds.length} friends tagged',
-                            ),
-                            children: [
-                              if (selected.isNotEmpty)
-                                Align(
-                                  alignment: Alignment.centerLeft,
-                                  child: Wrap(
-                                    spacing: 6,
-                                    runSpacing: 6,
-                                    children: selected
-                                        .map(
-                                          (friend) => InputChip(
-                                            label: Text(friend.resolvedName),
-                                            onDeleted: state.submitting
-                                                ? null
-                                                : () => controller
-                                                      .toggleTaggedUser(
-                                                        friend.friendId,
-                                                      ),
-                                          ),
-                                        )
-                                        .toList(growable: false),
-                                  ),
-                                ),
-                              const SizedBox(height: 8),
-                              TextField(
-                                controller: _tagSearch,
-                                enabled: !state.submitting,
-                                onChanged: (value) =>
-                                    setState(() => _tagQuery = value),
-                                decoration: const InputDecoration(
-                                  prefixIcon: Icon(Icons.search),
-                                  hintText: 'Search friends',
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              if (visible.isEmpty)
-                                const Padding(
-                                  padding: EdgeInsets.all(16),
-                                  child: Text('No matching friends'),
-                                )
-                              else
-                                ...visible.map(
-                                  (friend) => CheckboxListTile(
-                                    value: state.taggedUserIds.contains(
-                                      friend.friendId,
-                                    ),
-                                    title: Text(friend.resolvedName),
-                                    subtitle:
-                                        friend.username?.isNotEmpty == true
-                                        ? Text('@${friend.username}')
-                                        : null,
-                                    onChanged: state.submitting
-                                        ? null
-                                        : (_) => controller.toggleTaggedUser(
-                                            friend.friendId,
-                                          ),
-                                  ),
-                                ),
-                            ],
-                          );
-                        },
-                      ),
                       if (state.error != null) ...[
                         const SizedBox(height: 12),
                         Text(
@@ -506,6 +448,62 @@ class _PostComposerSheetState extends ConsumerState<_PostComposerSheet> {
         .submit();
     if (post != null && mounted) context.pop(post);
   }
+}
+
+class _MentionSuggestions extends StatelessWidget {
+  const _MentionSuggestions({
+    required this.friends,
+    required this.query,
+    required this.onSelected,
+  });
+
+  final AsyncValue<List<Friend>> friends;
+  final String query;
+  final void Function(String userId, String username) onSelected;
+
+  @override
+  Widget build(BuildContext context) => friends.when(
+    loading: () => const LinearProgressIndicator(),
+    error: (_, _) => const SizedBox.shrink(),
+    data: (items) {
+      final normalized = query.toLowerCase();
+      final visible = items
+          .where((friend) {
+            final username = friend.username?.trim();
+            if (username == null || username.isEmpty) return false;
+            return normalized.isEmpty ||
+                username.toLowerCase().contains(normalized) ||
+                friend.resolvedName.toLowerCase().contains(normalized);
+          })
+          .take(6)
+          .toList(growable: false);
+      if (visible.isEmpty) return const SizedBox.shrink();
+      return Card(
+        margin: const EdgeInsets.only(bottom: 12),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: 264),
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: visible.length,
+            itemBuilder: (context, index) {
+              final friend = visible[index];
+              return ListTile(
+                leading: KirenzUserAvatar(
+                  name: friend.resolvedName,
+                  imageUrl: friend.avatarUrl,
+                  radius: 20,
+                ),
+                title: Text(friend.resolvedName),
+                subtitle: Text('@${friend.username}'),
+                onTap: () =>
+                    onSelected(friend.friendId, friend.username!.trim()),
+              );
+            },
+          ),
+        ),
+      );
+    },
+  );
 }
 
 class _DraftImageTile extends StatelessWidget {

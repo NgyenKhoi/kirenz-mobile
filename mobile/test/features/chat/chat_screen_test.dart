@@ -70,6 +70,8 @@ void main() {
 
     await tester.tap(find.byTooltip('New message'));
     await tester.pumpAndSettle();
+    await tester.tap(find.text('New direct message'));
+    await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), 'ot');
     await tester.pump(const Duration(milliseconds: 450));
     await tester.pump();

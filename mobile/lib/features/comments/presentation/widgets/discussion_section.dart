@@ -3,8 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../friends/domain/entities/friend_models.dart';
-import '../../../friends/presentation/controllers/friends_controller.dart';
 import '../../../posts/domain/entities/post.dart';
 import '../../data/repositories/discussion_repository.dart';
 import '../../domain/entities/comment.dart';
@@ -150,14 +148,9 @@ class _CommentComposerState extends ConsumerState<CommentComposer> {
       }
     });
     final state = ref.watch(commentControllerProvider(widget.postId));
-    final friends = ref.watch(friendsProvider(null));
     final controller = ref.read(
       commentControllerProvider(widget.postId).notifier,
     );
-    final selectedFriends = friends.valueOrNull
-            ?.where((friend) => state.taggedUserIds.contains(friend.friendId))
-            .toList(growable: false) ??
-        const <Friend>[];
     if (_text.text != state.draft) {
       _text.value = _text.value.copyWith(
         text: state.draft,
@@ -190,41 +183,6 @@ class _CommentComposerState extends ConsumerState<CommentComposer> {
                     ),
                   ],
                 ),
-              if (selectedFriends.isNotEmpty)
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [
-                        for (final friend in selectedFriends)
-                          Padding(
-                            padding: const EdgeInsets.only(right: 6),
-                            child: InputChip(
-                              avatar: CircleAvatar(
-                                backgroundImage:
-                                    friend.avatarUrl?.isNotEmpty == true
-                                    ? CachedNetworkImageProvider(
-                                        friend.avatarUrl!,
-                                      )
-                                    : null,
-                                child: friend.avatarUrl?.isNotEmpty == true
-                                    ? null
-                                    : Text(friend.resolvedName[0].toUpperCase()),
-                              ),
-                              label: Text(friend.resolvedName),
-                              tooltip: 'Remove ${friend.resolvedName}',
-                              onDeleted: state.sending || state.isCached
-                                  ? null
-                                  : () => controller.toggleTaggedUser(
-                                      friend.friendId,
-                                    ),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
@@ -244,26 +202,6 @@ class _CommentComposerState extends ConsumerState<CommentComposer> {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  IconButton(
-                    tooltip: state.taggedUserIds.isEmpty
-                        ? 'Tag friends'
-                        : 'Tag friends (${state.taggedUserIds.length} selected)',
-                    onPressed: state.sending || state.isCached
-                        ? null
-                        : () => showModalBottomSheet<void>(
-                            context: context,
-                            isScrollControlled: true,
-                            useSafeArea: true,
-                            builder: (_) => _CommentTagSheet(
-                              postId: widget.postId,
-                            ),
-                          ),
-                    icon: Badge.count(
-                      count: state.taggedUserIds.length,
-                      isLabelVisible: state.taggedUserIds.isNotEmpty,
-                      child: const Icon(Icons.alternate_email),
-                    ),
-                  ),
                   IconButton.filled(
                     tooltip: 'Send comment',
                     onPressed:
@@ -307,139 +245,6 @@ class _CommentComposerState extends ConsumerState<CommentComposer> {
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _CommentTagSheet extends ConsumerStatefulWidget {
-  const _CommentTagSheet({required this.postId});
-
-  final String postId;
-
-  @override
-  ConsumerState<_CommentTagSheet> createState() => _CommentTagSheetState();
-}
-
-class _CommentTagSheetState extends ConsumerState<_CommentTagSheet> {
-  final _search = TextEditingController();
-  String _query = '';
-
-  @override
-  void dispose() {
-    _search.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final friends = ref.watch(friendsProvider(null));
-    final selectedIds = ref.watch(
-      commentControllerProvider(
-        widget.postId,
-      ).select((state) => state.taggedUserIds),
-    );
-    final controller = ref.read(
-      commentControllerProvider(widget.postId).notifier,
-    );
-    return SizedBox(
-      height: MediaQuery.sizeOf(context).height * .72,
-      child: Column(
-        children: [
-          ListTile(
-            title: const Text('Tag friends'),
-            subtitle: Text('${selectedIds.length} selected'),
-            trailing: TextButton(
-              onPressed: () => context.pop(),
-              child: const Text('Done'),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-            child: TextField(
-              controller: _search,
-              autofocus: true,
-              textInputAction: TextInputAction.search,
-              onChanged: (value) => setState(() => _query = value.trim()),
-              decoration: InputDecoration(
-                hintText: 'Search your friends',
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: _query.isEmpty
-                    ? null
-                    : IconButton(
-                        tooltip: 'Clear search',
-                        onPressed: () {
-                          _search.clear();
-                          setState(() => _query = '');
-                        },
-                        icon: const Icon(Icons.close),
-                      ),
-              ),
-            ),
-          ),
-          Expanded(
-            child: friends.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (error, _) => _DiscussionError(
-                message: error.toString(),
-                onRetry: () => ref.invalidate(friendsProvider(null)),
-              ),
-              data: (items) {
-                final normalized = _query.toLowerCase();
-                final visible = items.where((friend) {
-                  if (normalized.isEmpty) return true;
-                  return friend.resolvedName.toLowerCase().contains(
-                            normalized,
-                          ) ||
-                      (friend.username?.toLowerCase().contains(normalized) ??
-                          false);
-                }).toList(growable: false)
-                  ..sort((left, right) {
-                    final leftSelected = selectedIds.contains(left.friendId);
-                    final rightSelected = selectedIds.contains(right.friendId);
-                    if (leftSelected != rightSelected) {
-                      return leftSelected ? -1 : 1;
-                    }
-                    return left.resolvedName.compareTo(right.resolvedName);
-                  });
-                if (visible.isEmpty) {
-                  return Center(
-                    child: Text(
-                      normalized.isEmpty
-                          ? 'No friends available to tag'
-                          : 'No friends match your search',
-                    ),
-                  );
-                }
-                return ListView.builder(
-                  itemCount: visible.length,
-                  itemBuilder: (context, index) {
-                    final friend = visible[index];
-                    final selected = selectedIds.contains(friend.friendId);
-                    return CheckboxListTile(
-                      value: selected,
-                      onChanged: (_) =>
-                          controller.toggleTaggedUser(friend.friendId),
-                      secondary: CircleAvatar(
-                        backgroundImage: friend.avatarUrl?.isNotEmpty == true
-                            ? CachedNetworkImageProvider(friend.avatarUrl!)
-                            : null,
-                        child: friend.avatarUrl?.isNotEmpty == true
-                            ? null
-                            : Text(friend.resolvedName[0].toUpperCase()),
-                      ),
-                      title: Text(friend.resolvedName),
-                      subtitle: friend.username?.isNotEmpty == true
-                          ? Text('@${friend.username}')
-                          : null,
-                      controlAffinity: ListTileControlAffinity.trailing,
-                    );
-                  },
-                );
-              },
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -690,10 +495,7 @@ Future<ReactionType?> showReactionPicker(BuildContext context) {
 }
 
 class _ReactionPickerOption extends StatelessWidget {
-  const _ReactionPickerOption({
-    required this.type,
-    required this.reduceMotion,
-  });
+  const _ReactionPickerOption({required this.type, required this.reduceMotion});
 
   final ReactionType type;
   final bool reduceMotion;
