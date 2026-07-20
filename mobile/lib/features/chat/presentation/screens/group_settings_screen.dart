@@ -9,6 +9,7 @@ import '../../../friends/presentation/controllers/friends_controller.dart';
 import '../../../friends/domain/entities/friend_models.dart';
 import '../../domain/entities/conversation.dart';
 import '../controllers/conversation_controller.dart';
+import '../widgets/nickname_dialog.dart';
 
 class GroupSettingsScreen extends ConsumerWidget {
   const GroupSettingsScreen({required this.conversationId, super.key});
@@ -352,32 +353,10 @@ class _MemberTile extends ConsumerWidget {
   }
 
   Future<void> _nickname(BuildContext context, WidgetRef ref) async {
-    final controller = TextEditingController(text: participant.nickname ?? '');
     final nickname = await showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Nickname for ${participant.resolvedName}'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: const InputDecoration(
-            labelText: 'Nickname',
-            helperText: 'Leave empty to clear the nickname.',
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, controller.text),
-            child: const Text('Save'),
-          ),
-        ],
-      ),
+      builder: (_) => NicknameDialog(participant: participant),
     );
-    controller.dispose();
     if (nickname == null || !context.mounted) return;
     await _run(
       context,

@@ -159,6 +159,7 @@ class FeedScreen extends ConsumerWidget {
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
+      backgroundColor: Colors.transparent,
       builder: (context) => const _PostComposerSheet(),
     );
     if (post != null) {
@@ -266,151 +267,194 @@ class _PostComposerSheetState extends ConsumerState<_PostComposerSheet> {
     final state = ref.watch(postComposerControllerProvider);
     final controller = ref.read(postComposerControllerProvider.notifier);
     final friends = ref.watch(friendsProvider(null));
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final keyboard = MediaQuery.viewInsetsOf(context).bottom;
-        final availableHeight = (constraints.maxHeight - keyboard).clamp(
-          0.0,
-          constraints.maxHeight,
-        );
-        return AnimatedPadding(
-          padding: EdgeInsets.only(bottom: keyboard),
-          duration: MediaQuery.disableAnimationsOf(context)
-              ? Duration.zero
-              : const Duration(milliseconds: 180),
-          curve: Curves.easeOutCubic,
-          child: SizedBox(
-            height: availableHeight,
-            child: Column(
-              children: [
-                AppBar(
-                  automaticallyImplyLeading: false,
-                  title: const Text('Create post'),
-                  leading: IconButton(
-                    tooltip: 'Close',
-                    onPressed: state.submitting ? null : () => context.pop(),
-                    icon: const Icon(Icons.close),
+    final keyboardHeight = MediaQuery.viewInsetsOf(context).bottom;
+    final colors = Theme.of(context).colorScheme;
+    return AnimatedPadding(
+      duration: MediaQuery.disableAnimationsOf(context)
+          ? Duration.zero
+          : const Duration(milliseconds: 180),
+      curve: Curves.easeOutCubic,
+      padding: EdgeInsets.only(bottom: keyboardHeight),
+      child: FractionallySizedBox(
+        heightFactor: .94,
+        child: Material(
+          color: colors.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 10),
+                child: Container(
+                  width: 44,
+                  height: 5,
+                  decoration: BoxDecoration(
+                    color: colors.onSurfaceVariant.withValues(alpha: .35),
+                    borderRadius: BorderRadius.circular(999),
                   ),
-                  actions: [
-                    Padding(
-                      padding: const EdgeInsets.only(right: 12),
-                      child: FilledButton(
-                        onPressed: state.canSubmit ? _submit : null,
-                        child: state.submitting
-                            ? const SizedBox.square(
-                                dimension: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Text('Post'),
+                ),
+              ),
+              AppBar(
+                automaticallyImplyLeading: false,
+                backgroundColor: Colors.transparent,
+                elevation: 0,
+                scrolledUnderElevation: 0,
+                title: const Text(
+                  'Create post',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+                leading: IconButton(
+                  tooltip: 'Close',
+                  onPressed: state.submitting
+                      ? null
+                      : () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.close),
+                ),
+                actions: [
+                  Padding(
+                    padding: const EdgeInsets.only(right: 12),
+                    child: FilledButton(
+                      onPressed: state.canSubmit ? _submit : null,
+                      child: state.submitting
+                          ? const SizedBox.square(
+                              dimension: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Text('Post'),
+                    ),
+                  ),
+                ],
+              ),
+              const Divider(height: 1),
+              Expanded(
+                child: ListView(
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
+                  padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
+                  children: [
+                    TextField(
+                      controller: _content,
+                      minLines: 5,
+                      maxLines: 10,
+                      autofocus: true,
+                      textAlignVertical: TextAlignVertical.top,
+                      onChanged: _contentChanged,
+                      decoration: InputDecoration(
+                        hintText: "What's making you smile?",
+                        alignLabelWithHint: true,
+                        contentPadding: const EdgeInsets.all(20),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(28),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(28),
+                          borderSide: BorderSide(color: colors.outlineVariant),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(28),
+                          borderSide: BorderSide(
+                            color: colors.primary,
+                            width: 2,
+                          ),
+                        ),
                       ),
                     ),
+                    const SizedBox(height: 24),
+                    if (_mention != null) ...[
+                      _MentionSuggestions(
+                        friends: friends,
+                        query: _mention!.query,
+                        onSelected: _selectMention,
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+                    DropdownButtonFormField<PostPrivacy>(
+                      initialValue: state.privacy,
+                      isExpanded: true,
+                      decoration: InputDecoration(
+                        labelText: 'Who can see this?',
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 18,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(28),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(28),
+                          borderSide: BorderSide(color: colors.outlineVariant),
+                        ),
+                      ),
+                      items: const [
+                        DropdownMenuItem(
+                          value: PostPrivacy.public,
+                          child: Text('Public'),
+                        ),
+                        DropdownMenuItem(
+                          value: PostPrivacy.friends,
+                          child: Text('Friends'),
+                        ),
+                        DropdownMenuItem(
+                          value: PostPrivacy.onlyMe,
+                          child: Text('Only me'),
+                        ),
+                      ],
+                      onChanged: state.submitting
+                          ? null
+                          : (value) {
+                              if (value != null) {
+                                controller.updatePrivacy(value);
+                              }
+                            },
+                    ),
+                    const SizedBox(height: 18),
+                    SizedBox(
+                      height: 58,
+                      child: OutlinedButton.icon(
+                        onPressed: state.submitting ? null : _pickImages,
+                        icon: const Icon(Icons.photo_library_outlined),
+                        label: Text(
+                          state.images.isEmpty
+                              ? 'Add photos'
+                              : '${state.images.length}/10 photos',
+                        ),
+                      ),
+                    ),
+                    if (state.images.isNotEmpty) ...[
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        height: 112,
+                        child: ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: state.images.length,
+                          separatorBuilder: (_, _) => const SizedBox(width: 8),
+                          itemBuilder: (context, index) {
+                            final image = state.images[index];
+                            return SizedBox.square(
+                              dimension: 112,
+                              child: _DraftImageTile(
+                                image: image,
+                                onRemove: () =>
+                                    controller.removeImage(image.path),
+                                onRetry: () =>
+                                    controller.retryImage(image.path),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                    if (state.error != null) ...[
+                      const SizedBox(height: 16),
+                      Text(state.error!, style: TextStyle(color: colors.error)),
+                    ],
                   ],
                 ),
-                Expanded(
-                  child: ListView(
-                    padding: const EdgeInsets.all(16),
-                    children: [
-                      TextField(
-                        controller: _content,
-                        minLines: 4,
-                        maxLines: 10,
-                        autofocus: true,
-                        onChanged: _contentChanged,
-                        decoration: const InputDecoration(
-                          hintText: "What's making you smile?",
-                          border: InputBorder.none,
-                          filled: false,
-                        ),
-                      ),
-                      if (_mention != null)
-                        _MentionSuggestions(
-                          friends: friends,
-                          query: _mention!.query,
-                          onSelected: _selectMention,
-                        ),
-                      DropdownButtonFormField<PostPrivacy>(
-                        initialValue: state.privacy,
-                        decoration: const InputDecoration(
-                          labelText: 'Who can see this?',
-                        ),
-                        items: const [
-                          DropdownMenuItem(
-                            value: PostPrivacy.public,
-                            child: Text('Public'),
-                          ),
-                          DropdownMenuItem(
-                            value: PostPrivacy.friends,
-                            child: Text('Friends'),
-                          ),
-                          DropdownMenuItem(
-                            value: PostPrivacy.onlyMe,
-                            child: Text('Only me'),
-                          ),
-                        ],
-                        onChanged: (value) {
-                          if (value != null) controller.updatePrivacy(value);
-                        },
-                      ),
-                      const SizedBox(height: 14),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              onPressed: state.submitting ? null : _pickImages,
-                              icon: const Icon(Icons.photo_library_outlined),
-                              label: Text(
-                                state.images.isEmpty
-                                    ? 'Add photos'
-                                    : '${state.images.length}/10 photos',
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      if (state.images.isNotEmpty) ...[
-                        const SizedBox(height: 12),
-                        SizedBox(
-                          height: 112,
-                          child: ListView.separated(
-                            scrollDirection: Axis.horizontal,
-                            itemCount: state.images.length,
-                            separatorBuilder: (_, _) =>
-                                const SizedBox(width: 8),
-                            itemBuilder: (context, index) {
-                              final image = state.images[index];
-                              return SizedBox.square(
-                                dimension: 112,
-                                child: _DraftImageTile(
-                                  image: image,
-                                  onRemove: () =>
-                                      controller.removeImage(image.path),
-                                  onRetry: () =>
-                                      controller.retryImage(image.path),
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                      ],
-                      if (state.error != null) ...[
-                        const SizedBox(height: 12),
-                        Text(
-                          state.error!,
-                          style: TextStyle(
-                            color: Theme.of(context).colorScheme.error,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 

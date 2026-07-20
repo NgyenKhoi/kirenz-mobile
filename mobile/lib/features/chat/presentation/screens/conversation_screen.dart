@@ -15,6 +15,7 @@ import '../../domain/entities/conversation.dart';
 import '../../domain/entities/chat_message.dart';
 import '../../../privacy/data/repositories/privacy_repository.dart';
 import '../controllers/message_controller.dart';
+import '../widgets/nickname_dialog.dart';
 import '../../../../shared/widgets/media_viewer.dart';
 
 final directMessagePermissionProvider = FutureProvider.family<bool, String>((
@@ -163,6 +164,15 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
         permission.value == true &&
         directBlockStatus.hasValue &&
         !hasDirectBlock;
+    final headerTitle = otherUser?.displayName?.trim().isNotEmpty == true
+        ? otherUser!.displayName!.trim()
+        : conversation.titleFor(currentUserId);
+    final nickname = otherUser?.nickname?.trim();
+    final presenceLabel = presence?.label(DateTime.now());
+    final headerSubtitle = [
+      if (nickname?.isNotEmpty == true && nickname != headerTitle) nickname!,
+      ?presenceLabel,
+    ].join(' · ');
     if (conversation.type == ConversationType.group) {
       final blocked = ref.watch(
         sharedGroupBlockedParticipantsProvider(conversation),
@@ -177,15 +187,40 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     }
     return Scaffold(
       appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        titleSpacing: 4,
+        title: Row(
           children: [
-            Text(conversation.titleFor(currentUserId)),
-            if (presence != null)
-              Text(
-                presence.label(DateTime.now()),
-                style: Theme.of(context).textTheme.labelSmall,
+            if (otherUser != null)
+              KirenzUserAvatar(
+                name: headerTitle,
+                imageUrl: otherUser.avatarUrl,
+                radius: 20,
+              )
+            else
+              CircleAvatar(
+                radius: 20,
+                child: Text(_initials(conversation.titleFor(currentUserId))),
               ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    headerTitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (headerSubtitle.isNotEmpty)
+                    Text(
+                      headerSubtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.labelSmall,
+                    ),
+                ],
+              ),
+            ),
           ],
         ),
         actions: [
@@ -203,6 +238,12 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
               tooltip: 'Group settings',
               onPressed: () => context.push('/chat/$conversationId/settings'),
               icon: const Icon(Icons.settings_outlined),
+            ),
+          if (otherUser != null)
+            IconButton(
+              tooltip: 'Edit nickname',
+              onPressed: () => _editDirectNickname(conversation, otherUser),
+              icon: const Icon(Icons.edit_outlined),
             ),
         ],
       ),
@@ -314,6 +355,27 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     );
   }
 
+  Future<void> _editDirectNickname(
+    Conversation conversation,
+    ConversationParticipant participant,
+  ) async {
+    final nickname = await showDialog<String>(
+      context: context,
+      builder: (_) => NicknameDialog(participant: participant),
+    );
+    if (nickname == null || !mounted) return;
+    try {
+      await ref
+          .read(conversationControllerProvider.notifier)
+          .updateNickname(conversation.id, participant.userId, nickname);
+    } on Object catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.toString())));
+    }
+  }
+
   Future<void> _showSharedGroupBlockWarning(
     List<ConversationParticipant> participants,
   ) {
@@ -361,7 +423,9 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     for (final file in result.files) {
       final attachment = _draftAttachmentFor(file);
       if (attachment == null) {
-        rejected.add('${file.name} is not a supported image, video, PDF, or DOCX file.');
+        rejected.add(
+          '${file.name} is not a supported image, video, PDF, or DOCX file.',
+        );
       } else {
         files.add(attachment);
       }
@@ -623,37 +687,37 @@ class _MessageBubble extends StatelessWidget {
     }
     final colors = Theme.of(context).colorScheme;
     final bubble = Container(
-        constraints: const BoxConstraints(maxWidth: 300),
-        margin: EdgeInsets.only(bottom: compact ? 3 : 10),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: own ? colors.primaryContainer : colors.surfaceContainerLow,
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (!own && showSender)
-              Text(
-                message.senderName,
-                style: Theme.of(
-                  context,
-                ).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w700),
-              ),
-            if (message.attachments.isNotEmpty)
-              _MessageAttachments(attachments: message.attachments),
-            if (message.content.isNotEmpty) ...[
-              if (message.attachments.isNotEmpty) const SizedBox(height: 8),
-              Text(message.content),
-            ],
-            const SizedBox(height: 4),
+      constraints: const BoxConstraints(maxWidth: 300),
+      margin: EdgeInsets.only(bottom: compact ? 3 : 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: own ? colors.primaryContainer : colors.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (!own && showSender)
             Text(
-              _messageTime(message.sentAt),
-              style: Theme.of(context).textTheme.labelSmall,
+              message.senderName,
+              style: Theme.of(
+                context,
+              ).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w700),
             ),
+          if (message.attachments.isNotEmpty)
+            _MessageAttachments(attachments: message.attachments),
+          if (message.content.isNotEmpty) ...[
+            if (message.attachments.isNotEmpty) const SizedBox(height: 8),
+            Text(message.content),
           ],
-        ),
-      );
+          const SizedBox(height: 4),
+          Text(
+            _messageTime(message.sentAt),
+            style: Theme.of(context).textTheme.labelSmall,
+          ),
+        ],
+      ),
+    );
     return Align(
       alignment: own ? Alignment.centerRight : Alignment.centerLeft,
       child: Row(
@@ -810,7 +874,7 @@ class _MessageComposer extends StatelessWidget {
       child: Material(
         color: Theme.of(context).colorScheme.surfaceContainerLowest,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
+          padding: const EdgeInsets.fromLTRB(6, 4, 6, 6),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -846,8 +910,12 @@ class _MessageComposer extends StatelessWidget {
                 children: [
                   IconButton(
                     tooltip: 'Attach media or document',
+                    style: IconButton.styleFrom(
+                      minimumSize: const Size.square(42),
+                      visualDensity: VisualDensity.compact,
+                    ),
                     onPressed: enabled && !state.publishing ? onAttach : null,
-                    icon: const Icon(Icons.attach_file),
+                    icon: const Icon(Icons.attach_file, size: 21),
                   ),
                   Expanded(
                     child: TextField(
@@ -855,9 +923,14 @@ class _MessageComposer extends StatelessWidget {
                       focusNode: focusNode,
                       enabled: enabled && !state.publishing,
                       minLines: 1,
-                      maxLines: 5,
+                      maxLines: 4,
                       onChanged: onChanged,
                       decoration: InputDecoration(
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 11,
+                        ),
                         hintText: permissionAllowed
                             ? connected
                                   ? 'Write a message'
@@ -868,13 +941,17 @@ class _MessageComposer extends StatelessWidget {
                   ),
                   IconButton.filled(
                     tooltip: 'Send message',
+                    style: IconButton.styleFrom(
+                      minimumSize: const Size.square(42),
+                      visualDensity: VisualDensity.compact,
+                    ),
                     onPressed: enabled && state.canPublish ? onSend : null,
                     icon: state.publishing
                         ? const SizedBox.square(
                             dimension: 18,
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
-                        : const Icon(Icons.send),
+                        : const Icon(Icons.send, size: 20),
                   ),
                 ],
               ),
@@ -1053,6 +1130,16 @@ String _cachedTime(DateTime value) {
       '${local.month.toString().padLeft(2, '0')} '
       '${local.hour.toString().padLeft(2, '0')}:'
       '${local.minute.toString().padLeft(2, '0')}';
+}
+
+String _initials(String value) {
+  final words = value
+      .trim()
+      .split(RegExp(r'\s+'))
+      .where((word) => word.isNotEmpty)
+      .take(2);
+  final result = words.map((word) => word[0].toUpperCase()).join();
+  return result.isEmpty ? '?' : result;
 }
 
 class _RealtimeNotice extends StatelessWidget {
