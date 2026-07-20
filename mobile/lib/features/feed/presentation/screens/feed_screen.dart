@@ -44,7 +44,7 @@ class FeedScreen extends ConsumerWidget {
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
             SliverPadding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+              padding: const EdgeInsets.fromLTRB(0, 8, 0, 4),
               sliver: SliverToBoxAdapter(
                 child: _CreateEntry(
                   avatarUrl: session.user?.avatarUrl,
@@ -111,11 +111,10 @@ class FeedScreen extends ConsumerWidget {
               )
             else
               SliverPadding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
+                padding: const EdgeInsets.only(top: 4, bottom: 24),
                 sliver: SliverList.separated(
                   itemCount: state.posts.length,
-                  separatorBuilder: (context, index) =>
-                      const SizedBox(height: 16),
+                  separatorBuilder: (context, index) => const SizedBox(height: 8),
                   itemBuilder: (context, index) {
                     final post = state.posts[index];
                     return PostCard(

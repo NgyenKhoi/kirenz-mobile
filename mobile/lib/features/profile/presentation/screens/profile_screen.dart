@@ -25,7 +25,8 @@ class ProfileScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final isCurrentUser = userId == null;
+    final sessionUserId = ref.watch(sessionControllerProvider).user?.id;
+    final isCurrentUser = userId == null || userId == sessionUserId;
     final currentProfile = isCurrentUser
         ? ref.watch(currentUserProfileProvider)
         : null;
