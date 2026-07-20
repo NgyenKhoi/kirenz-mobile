@@ -54,46 +54,46 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
         ),
         body: KirenzContentFrame(
           child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-              child: TextField(
-                controller: _searchController,
-                textInputAction: TextInputAction.search,
-                decoration: InputDecoration(
-                  hintText: 'Search people',
-                  prefixIcon: const Icon(Icons.search),
-                  suffixIcon: _query.isEmpty
-                      ? null
-                      : IconButton(
-                          tooltip: 'Clear search',
-                          onPressed: () {
-                            _searchController.clear();
-                            setState(() => _query = '');
-                          },
-                          icon: const Icon(Icons.close),
-                        ),
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                child: TextField(
+                  controller: _searchController,
+                  textInputAction: TextInputAction.search,
+                  decoration: InputDecoration(
+                    hintText: 'Search people',
+                    prefixIcon: const Icon(Icons.search),
+                    suffixIcon: _query.isEmpty
+                        ? null
+                        : IconButton(
+                            tooltip: 'Clear search',
+                            onPressed: () {
+                              _searchController.clear();
+                              setState(() => _query = '');
+                            },
+                            icon: const Icon(Icons.close),
+                          ),
+                  ),
+                  onChanged: (value) {
+                    _debounce?.cancel();
+                    _debounce = Timer(const Duration(milliseconds: 450), () {
+                      if (mounted) setState(() => _query = value.trim());
+                    });
+                  },
                 ),
-                onChanged: (value) {
-                  _debounce?.cancel();
-                  _debounce = Timer(const Duration(milliseconds: 450), () {
-                    if (mounted) setState(() => _query = value.trim());
-                  });
-                },
               ),
-            ),
-            Expanded(
-              child: _query.isNotEmpty
-                  ? _SearchResults(query: _query)
-                  : const TabBarView(
-                      children: [
-                        _RequestsTab(),
-                        _SuggestionsTab(),
-                        _FriendsTab(),
-                      ],
-                    ),
-            ),
-          ],
+              Expanded(
+                child: _query.isNotEmpty
+                    ? _SearchResults(query: _query)
+                    : const TabBarView(
+                        children: [
+                          _RequestsTab(),
+                          _SuggestionsTab(),
+                          _FriendsTab(),
+                        ],
+                      ),
+              ),
+            ],
           ),
         ),
       ),
@@ -479,33 +479,62 @@ class _PersonCard extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(24),
         onTap: userId.isEmpty ? null : () => context.push('/profile/$userId'),
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Row(
-            children: [
-              KirenzUserAvatar(name: name, imageUrl: avatarUrl, radius: 25),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      name,
-                      style: const TextStyle(fontWeight: FontWeight.w800),
-                    ),
-                    if (username?.isNotEmpty == true)
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final stackAction = trailing != null && constraints.maxWidth < 380;
+            final identity = Row(
+              children: [
+                KirenzUserAvatar(name: name, imageUrl: avatarUrl, radius: 25),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                       Text(
-                        '@$username',
-                        style: Theme.of(context).textTheme.bodySmall,
+                        name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.w800),
                       ),
-                    if (bio?.isNotEmpty == true)
-                      Text(bio!, maxLines: 2, overflow: TextOverflow.ellipsis),
-                  ],
+                      if (username?.isNotEmpty == true)
+                        Text(
+                          '@$username',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      if (bio?.isNotEmpty == true)
+                        Text(
+                          bio!,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                    ],
+                  ),
                 ),
-              ),
-              if (trailing != null) ...[const SizedBox(width: 8), trailing!],
-            ],
-          ),
+                if (trailing != null && !stackAction) ...[
+                  const SizedBox(width: 8),
+                  trailing!,
+                ],
+              ],
+            );
+            return Padding(
+              padding: const EdgeInsets.all(14),
+              child: stackAction
+                  ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        identity,
+                        const SizedBox(height: 10),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: trailing,
+                        ),
+                      ],
+                    )
+                  : identity,
+            );
+          },
         ),
       ),
     );
@@ -582,4 +611,3 @@ Future<void> _confirmRemove(
     );
   }
 }
-

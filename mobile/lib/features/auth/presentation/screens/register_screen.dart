@@ -42,127 +42,151 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       child: Scaffold(
         appBar: AppBar(title: const Text('Register')),
         body: SafeArea(
-          child: Form(
-            key: _formKey,
-            child: ListView(
-              padding: const EdgeInsets.all(24),
-              children: [
-                TextFormField(
-                  controller: _displayNameController,
-                  enabled: !_isSubmitting,
-                  onChanged: (_) => _clearFieldError('displayName'),
-                  textInputAction: TextInputAction.next,
-                  decoration: InputDecoration(
-                    labelText: 'Display name',
-                    prefixIcon: const Icon(Icons.badge_outlined),
-                  ),
-                  validator: (value) {
-                    final displayName = value?.trim() ?? '';
-                    if (displayName.length > 100) {
-                      return 'Display name must be 100 characters or fewer';
-                    }
-
-                    return _fieldErrors['displayName'];
-                  },
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _usernameController,
-                  enabled: !_isSubmitting,
-                  onChanged: (_) => _clearFieldError('username'),
-                  textInputAction: TextInputAction.next,
-                  autofillHints: const [AutofillHints.username],
-                  decoration: InputDecoration(
-                    labelText: 'Username',
-                    prefixIcon: const Icon(Icons.alternate_email_rounded),
-                  ),
-                  validator: (value) {
-                    final username = value?.trim() ?? '';
-                    if (username.length < 3 || username.length > 50) {
-                      return 'Username must be 3 to 50 characters';
-                    }
-                    if (!RegExp(r'^[A-Za-z0-9._-]+$').hasMatch(username)) {
-                      return 'Use only letters, numbers, dots, dashes, or underscores';
-                    }
-                    return _fieldErrors['username'];
-                  },
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _emailController,
-                  enabled: !_isSubmitting,
-                  onChanged: (_) => _clearFieldError('email'),
-                  keyboardType: TextInputType.emailAddress,
-                  autofillHints: const [AutofillHints.email],
-                  textInputAction: TextInputAction.next,
-                  decoration: InputDecoration(
-                    labelText: 'Email',
-                    prefixIcon: const Icon(Icons.mail_outline),
-                  ),
-                  validator: (value) {
-                    final email = value?.trim() ?? '';
-                    if (email.length < 5 ||
-                        email.length > 255 ||
-                        !RegExp(
-                          r'^[^@\s]+@[^@\s]+\.[^@\s]+$',
-                        ).hasMatch(email)) {
-                      return 'Enter a valid email address';
-                    }
-
-                    return _fieldErrors['email'];
-                  },
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _passwordController,
-                  enabled: !_isSubmitting,
-                  onChanged: (_) => _clearFieldError('password'),
-                  obscureText: true,
-                  autofillHints: const [AutofillHints.newPassword],
-                  decoration: InputDecoration(
-                    labelText: 'Password',
-                    prefixIcon: const Icon(Icons.lock_outline),
-                  ),
-                  validator: (value) {
-                    if (value == null || value.length < 8) {
-                      return 'Password must be at least 8 characters';
-                    }
-
-                    return _fieldErrors['password'];
-                  },
-                ),
-                if (_formError != null) ...[
-                  const SizedBox(height: 12),
-                  Text(
-                    _formError!,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.error,
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 520),
+              child: Form(
+                key: _formKey,
+                child: ListView(
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+                  children: [
+                    Text(
+                      'Join Moments',
+                      style: Theme.of(context).textTheme.headlineSmall
+                          ?.copyWith(
+                            color: Theme.of(context).colorScheme.primary,
+                            fontWeight: FontWeight.w800,
+                          ),
                     ),
-                    semanticsLabel: 'Registration error: $_formError',
-                  ),
-                ],
-                const SizedBox(height: 24),
-                FilledButton(
-                  onPressed: _isSubmitting ? null : _submit,
-                  child: _isSubmitting
-                      ? const SizedBox.square(
-                          dimension: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Text('Create account'),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Create your space to share and stay close.',
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    TextFormField(
+                      controller: _displayNameController,
+                      enabled: !_isSubmitting,
+                      onChanged: (_) => _clearFieldError('displayName'),
+                      textInputAction: TextInputAction.next,
+                      decoration: InputDecoration(
+                        labelText: 'Display name',
+                        prefixIcon: const Icon(Icons.badge_outlined),
+                      ),
+                      validator: (value) {
+                        final displayName = value?.trim() ?? '';
+                        if (displayName.length > 100) {
+                          return 'Display name must be 100 characters or fewer';
+                        }
+
+                        return _fieldErrors['displayName'];
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _usernameController,
+                      enabled: !_isSubmitting,
+                      onChanged: (_) => _clearFieldError('username'),
+                      textInputAction: TextInputAction.next,
+                      autofillHints: const [AutofillHints.username],
+                      decoration: InputDecoration(
+                        labelText: 'Username',
+                        prefixIcon: const Icon(Icons.alternate_email_rounded),
+                      ),
+                      validator: (value) {
+                        final username = value?.trim() ?? '';
+                        if (username.length < 3 || username.length > 50) {
+                          return 'Username must be 3 to 50 characters';
+                        }
+                        if (!RegExp(r'^[A-Za-z0-9._-]+$').hasMatch(username)) {
+                          return 'Use only letters, numbers, dots, dashes, or underscores';
+                        }
+                        return _fieldErrors['username'];
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _emailController,
+                      enabled: !_isSubmitting,
+                      onChanged: (_) => _clearFieldError('email'),
+                      keyboardType: TextInputType.emailAddress,
+                      autofillHints: const [AutofillHints.email],
+                      textInputAction: TextInputAction.next,
+                      decoration: InputDecoration(
+                        labelText: 'Email',
+                        prefixIcon: const Icon(Icons.mail_outline),
+                      ),
+                      validator: (value) {
+                        final email = value?.trim() ?? '';
+                        if (email.length < 5 ||
+                            email.length > 255 ||
+                            !RegExp(
+                              r'^[^@\s]+@[^@\s]+\.[^@\s]+$',
+                            ).hasMatch(email)) {
+                          return 'Enter a valid email address';
+                        }
+
+                        return _fieldErrors['email'];
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _passwordController,
+                      enabled: !_isSubmitting,
+                      onChanged: (_) => _clearFieldError('password'),
+                      obscureText: true,
+                      autofillHints: const [AutofillHints.newPassword],
+                      decoration: InputDecoration(
+                        labelText: 'Password',
+                        prefixIcon: const Icon(Icons.lock_outline),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.length < 8) {
+                          return 'Password must be at least 8 characters';
+                        }
+
+                        return _fieldErrors['password'];
+                      },
+                    ),
+                    if (_formError != null) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        _formError!,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.error,
+                        ),
+                        semanticsLabel: 'Registration error: $_formError',
+                      ),
+                    ],
+                    const SizedBox(height: 24),
+                    FilledButton(
+                      onPressed: _isSubmitting ? null : _submit,
+                      child: _isSubmitting
+                          ? const SizedBox.square(
+                              dimension: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Text('Create account'),
+                    ),
+                    const SizedBox(height: 12),
+                    TextButton(
+                      onPressed: _isSubmitting
+                          ? null
+                          : () async {
+                              if (await _confirmDiscard() && context.mounted) {
+                                context.go('/login');
+                              }
+                            },
+                      child: const Text('Back to login'),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 12),
-                TextButton(
-                  onPressed: _isSubmitting
-                      ? null
-                      : () async {
-                          if (await _confirmDiscard() && context.mounted) {
-                            context.go('/login');
-                          }
-                        },
-                  child: const Text('Back to login'),
-                ),
-              ],
+              ),
             ),
           ),
         ),

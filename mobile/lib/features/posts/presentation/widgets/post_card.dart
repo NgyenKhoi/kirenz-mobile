@@ -47,6 +47,14 @@ class PostCard extends StatelessWidget {
 
   bool get _owned => post.author.id == currentUserId;
 
+  void _openAuthor(BuildContext context) {
+    context.push(
+      post.author.id == currentUserId
+          ? '/profile/me'
+          : '/profile/${post.author.id}',
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Card(
@@ -63,7 +71,7 @@ class PostCard extends StatelessWidget {
                 children: [
                   InkWell(
                     customBorder: const CircleBorder(),
-                    onTap: () => context.push('/profile/${post.author.id}'),
+                    onTap: () => _openAuthor(context),
                     child: CircleAvatar(
                       backgroundImage: post.author.avatarUrl?.isNotEmpty == true
                           ? CachedNetworkImageProvider(post.author.avatarUrl!)
@@ -76,7 +84,7 @@ class PostCard extends StatelessWidget {
                   const SizedBox(width: 12),
                   Expanded(
                     child: InkWell(
-                      onTap: () => context.push('/profile/${post.author.id}'),
+                      onTap: () => _openAuthor(context),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [

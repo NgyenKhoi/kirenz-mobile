@@ -92,11 +92,21 @@ class KirenzTheme {
 
     return ThemeData(
       useMaterial3: true,
+      visualDensity: VisualDensity.standard,
       colorScheme: colorScheme,
       fontFamily: _fontFamily,
       fontFamilyFallback: _fontFamilyFallback,
       textTheme: textTheme,
       scaffoldBackgroundColor: colorScheme.surface,
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: FadeForwardsPageTransitionsBuilder(),
+          TargetPlatform.iOS: FadeForwardsPageTransitionsBuilder(),
+          TargetPlatform.macOS: FadeForwardsPageTransitionsBuilder(),
+          TargetPlatform.windows: FadeForwardsPageTransitionsBuilder(),
+          TargetPlatform.linux: FadeForwardsPageTransitionsBuilder(),
+        },
+      ),
       appBarTheme: AppBarTheme(
         centerTitle: false,
         elevation: 0,
@@ -114,6 +124,12 @@ class KirenzTheme {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(24),
           side: BorderSide(color: colorScheme.outlineVariant),
+        ),
+      ),
+      iconButtonTheme: IconButtonThemeData(
+        style: IconButton.styleFrom(
+          minimumSize: const Size.square(48),
+          shape: const CircleBorder(),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
@@ -164,9 +180,10 @@ class KirenzTheme {
         ),
       ),
       navigationBarTheme: NavigationBarThemeData(
-        height: 72,
-        labelBehavior: NavigationDestinationLabelBehavior.onlyShowSelected,
-        backgroundColor: colorScheme.surfaceContainerLow,
+        height: 74,
+        elevation: 0,
+        labelBehavior: NavigationDestinationLabelBehavior.alwaysHide,
+        backgroundColor: colorScheme.surfaceContainerLowest,
         indicatorColor: colorScheme.primaryContainer,
         labelTextStyle: WidgetStateProperty.resolveWith(
           (states) => textTheme.labelSmall?.copyWith(
@@ -182,6 +199,35 @@ class KirenzTheme {
                 ? colorScheme.onPrimaryContainer
                 : colorScheme.onSurfaceVariant,
           ),
+        ),
+      ),
+      navigationRailTheme: NavigationRailThemeData(
+        minWidth: 88,
+        backgroundColor: colorScheme.surfaceContainerLowest,
+        indicatorColor: colorScheme.primaryContainer,
+        selectedIconTheme: IconThemeData(color: colorScheme.onPrimaryContainer),
+        unselectedIconTheme: IconThemeData(color: colorScheme.onSurfaceVariant),
+        selectedLabelTextStyle: textTheme.labelMedium?.copyWith(
+          color: colorScheme.primary,
+          fontWeight: FontWeight.w800,
+        ),
+        unselectedLabelTextStyle: textTheme.labelMedium?.copyWith(
+          color: colorScheme.onSurfaceVariant,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      tabBarTheme: TabBarThemeData(
+        dividerColor: Colors.transparent,
+        indicatorSize: TabBarIndicatorSize.tab,
+        indicator: BoxDecoration(
+          color: colorScheme.primaryContainer,
+          borderRadius: BorderRadius.circular(999),
+        ),
+        labelColor: colorScheme.onPrimaryContainer,
+        unselectedLabelColor: colorScheme.onSurfaceVariant,
+        labelStyle: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w800),
+        unselectedLabelStyle: textTheme.labelLarge?.copyWith(
+          fontWeight: FontWeight.w700,
         ),
       ),
       snackBarTheme: SnackBarThemeData(
@@ -212,6 +258,11 @@ class KirenzTheme {
       dialogTheme: DialogThemeData(
         backgroundColor: colorScheme.surfaceContainerLowest,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+      ),
+      progressIndicatorTheme: ProgressIndicatorThemeData(
+        color: colorScheme.primary,
+        linearTrackColor: colorScheme.surfaceContainerHighest,
+        circularTrackColor: colorScheme.surfaceContainerHighest,
       ),
     );
   }
