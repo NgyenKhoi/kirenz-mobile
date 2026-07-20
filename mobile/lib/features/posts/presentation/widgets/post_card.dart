@@ -157,36 +157,17 @@ class PostCard extends StatelessWidget {
               Row(
                 children: [
                   Expanded(
-                    child: GestureDetector(
-                      onLongPress: pending
-                          ? null
-                          : () => _pickReaction(context),
-                      child: TextButton.icon(
-                        onPressed: pending
-                            ? null
-                            : () => onReact(
-                                post.reactionSummary.currentUserReaction ??
-                                    ReactionType.like,
-                              ),
-                        icon: Text(
-                          post.reactionSummary.currentUserReaction == null
-                              ? '♡'
-                              : reactionEmoji(
-                                  post.reactionSummary.currentUserReaction!,
-                                ),
-                        ),
-                        label: Text(
-                          post.reactionSummary.currentUserReaction == null
-                              ? 'React'
-                              : reactionLabel(
-                                  post.reactionSummary.currentUserReaction!,
-                                ),
-                        ),
-                      ),
+                    child: _ReactionAction(
+                      reaction: post.reactionSummary.currentUserReaction,
+                      pending: pending,
+                      onReact: onReact,
                     ),
                   ),
                   Expanded(
                     child: TextButton.icon(
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                      ),
                       onPressed: isDetail
                           ? null
                           : () => context.push('/post/${post.id}'),
@@ -196,6 +177,9 @@ class PostCard extends StatelessWidget {
                   ),
                   Expanded(
                     child: TextButton.icon(
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                      ),
                       onPressed: pending ? null : () => _showShare(context),
                       icon: const Icon(Icons.share_outlined),
                       label: const Text('Share'),
@@ -203,7 +187,6 @@ class PostCard extends StatelessWidget {
                   ),
                 ],
               ),
-              if (pending) const LinearProgressIndicator(),
             ],
           ),
         ),
@@ -220,11 +203,6 @@ class PostCard extends StatelessWidget {
         onUploadImage: onUploadImage,
       ),
     );
-  }
-
-  Future<void> _pickReaction(BuildContext context) async {
-    final selected = await showReactionPicker(context);
-    if (selected != null) await onReact(selected);
   }
 
   Future<void> _confirmDelete(BuildContext context) async {
@@ -256,6 +234,156 @@ class PostCard extends StatelessWidget {
       context: context,
       builder: (context) => _SharePostDialog(onShare: onShare),
     );
+  }
+}
+
+class _ReactionAction extends StatefulWidget {
+  const _ReactionAction({
+    required this.reaction,
+    required this.pending,
+    required this.onReact,
+  });
+
+  final ReactionType? reaction;
+  final bool pending;
+  final Future<bool> Function(ReactionType reaction) onReact;
+
+  @override
+  State<_ReactionAction> createState() => _ReactionActionState();
+}
+
+class _ReactionActionState extends State<_ReactionAction> {
+  ReactionType? _optimisticReaction;
+  ReactionType? _burstReaction;
+  bool _submitting = false;
+
+  ReactionType? get _reaction => _optimisticReaction ?? widget.reaction;
+
+  @override
+  void didUpdateWidget(covariant _ReactionAction oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!widget.pending && oldWidget.pending && !_submitting) {
+      _optimisticReaction = null;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final reaction = _reaction;
+    final reduceMotion = MediaQuery.disableAnimationsOf(context);
+    return Stack(
+      clipBehavior: Clip.none,
+      alignment: Alignment.center,
+      children: [
+        GestureDetector(
+          onLongPress: _submitting || widget.pending ? null : _pickReaction,
+          child: TextButton.icon(
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+            ),
+            onPressed: _submitting || widget.pending
+                ? null
+                : () => _submit(reaction ?? ReactionType.like),
+            icon: AnimatedSwitcher(
+              duration: reduceMotion
+                  ? Duration.zero
+                  : const Duration(milliseconds: 180),
+              transitionBuilder: (child, animation) => ScaleTransition(
+                scale: CurvedAnimation(
+                  parent: animation,
+                  curve: Curves.easeOutBack,
+                ),
+                child: child,
+              ),
+              child: Text(
+                reaction == null ? '♡' : reactionEmoji(reaction),
+                key: ValueKey(reaction),
+              ),
+            ),
+            label: AnimatedSwitcher(
+              duration: reduceMotion
+                  ? Duration.zero
+                  : const Duration(milliseconds: 160),
+              child: Text(
+                reaction == null ? 'React' : reactionLabel(reaction),
+                key: ValueKey(reaction),
+              ),
+            ),
+          ),
+        ),
+        Positioned(
+          top: -34,
+          child: IgnorePointer(
+            child: AnimatedSlide(
+              offset: _burstReaction == null
+                  ? const Offset(0, .45)
+                  : Offset.zero,
+              duration: reduceMotion
+                  ? Duration.zero
+                  : const Duration(milliseconds: 220),
+              curve: Curves.easeOutBack,
+              child: AnimatedOpacity(
+                opacity: _burstReaction == null ? 0 : 1,
+                duration: reduceMotion
+                    ? Duration.zero
+                    : const Duration(milliseconds: 160),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surfaceContainerLowest,
+                    borderRadius: BorderRadius.circular(999),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x26000000),
+                        blurRadius: 12,
+                        offset: Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 7,
+                    ),
+                    child: Text(
+                      _burstReaction == null
+                          ? ''
+                          : reactionEmoji(_burstReaction!),
+                      style: const TextStyle(fontSize: 22),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _pickReaction() async {
+    final selected = await showReactionPicker(context);
+    if (selected != null) await _submit(selected);
+  }
+
+  Future<void> _submit(ReactionType selected) async {
+    if (_submitting || widget.pending) return;
+    final previous = _reaction;
+    final removing = selected == widget.reaction;
+    setState(() {
+      _submitting = true;
+      _optimisticReaction = removing ? null : selected;
+      _burstReaction = removing ? null : selected;
+    });
+    final success = await widget.onReact(selected);
+    if (!mounted) return;
+    setState(() {
+      _submitting = false;
+      _optimisticReaction = success ? null : previous;
+    });
+    if (_burstReaction != null) {
+      await Future<void>.delayed(const Duration(milliseconds: 520));
+      if (mounted) setState(() => _burstReaction = null);
+    }
   }
 }
 

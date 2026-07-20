@@ -5,11 +5,32 @@ import '../../../friends/presentation/controllers/friends_controller.dart';
 import '../../../privacy/data/repositories/privacy_repository.dart';
 import '../../../profile/data/repositories/profile_content_repository.dart';
 import '../../../profile/data/cache/profile_cache.dart';
+import '../../../profile/data/repositories/profile_repository.dart';
 import '../../data/repositories/block_repository.dart';
 import '../../domain/entities/block_models.dart';
 
-final blockedUsersProvider = FutureProvider<List<BlockRecord>>((ref) {
-  return ref.watch(blockRepositoryProvider).listBlockedUsers();
+final blockedUsersProvider = FutureProvider<List<BlockRecord>>((ref) async {
+  final records = await ref.watch(blockRepositoryProvider).listBlockedUsers();
+  return Future.wait(
+    records.map((record) async {
+      if (record.displayName?.trim().isNotEmpty == true ||
+          record.username?.trim().isNotEmpty == true) {
+        return record;
+      }
+      try {
+        final profile = await ref
+            .watch(profileRepositoryProvider)
+            .getUser(record.blockedUserId);
+        return record.withProfile(
+          username: profile.username,
+          displayName: profile.displayName,
+          avatarUrl: profile.avatarUrl,
+        );
+      } on Object {
+        return record;
+      }
+    }),
+  );
 });
 
 final blockStatusProvider = FutureProvider.family<BlockStatus, String>((

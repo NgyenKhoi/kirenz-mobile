@@ -7,7 +7,6 @@ import 'package:go_router/go_router.dart';
 import '../../../auth/presentation/controllers/session_controller.dart';
 import '../../../chat/domain/entities/realtime_chat.dart';
 import '../../../chat/presentation/controllers/chat_realtime_controller.dart';
-import '../../data/services/local_notification_service.dart';
 import '../controllers/notification_controller.dart';
 import '../notification_routing.dart';
 
@@ -30,7 +29,6 @@ class ForegroundNotificationLayer extends ConsumerStatefulWidget {
 
 class _ForegroundNotificationLayerState
     extends ConsumerState<ForegroundNotificationLayer> {
-  StreamSubscription<String>? _routeSubscription;
   StreamSubscription<ConversationRealtimeUpdate>? _chatSubscription;
   Timer? _chatTimer;
   ConversationRealtimeUpdate? _chatBanner;
@@ -40,7 +38,6 @@ class _ForegroundNotificationLayerState
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (widget.enabled && _routeSubscription == null) _initializeLocal();
     if (widget.enabled && _chatSubscription == null) _initializeChat();
   }
 
@@ -48,12 +45,9 @@ class _ForegroundNotificationLayerState
   void didUpdateWidget(covariant ForegroundNotificationLayer oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.enabled && !oldWidget.enabled) {
-      _initializeLocal();
       _initializeChat();
     }
     if (!widget.enabled && oldWidget.enabled) {
-      _routeSubscription?.cancel();
-      _routeSubscription = null;
       _chatSubscription?.cancel();
       _chatSubscription = null;
       _chatTimer?.cancel();
@@ -92,29 +86,13 @@ class _ForegroundNotificationLayerState
     }
     _chatTimer?.cancel();
     setState(() => _chatBanner = update);
-    ref.read(localNotificationServiceProvider).showChat(update);
     _chatTimer = Timer(const Duration(seconds: 5), () {
       if (mounted) setState(() => _chatBanner = null);
     });
   }
 
-  Future<void> _initializeLocal() async {
-    final service = ref.read(localNotificationServiceProvider);
-    await service.initialize();
-    if (!mounted || !widget.enabled) return;
-    _routeSubscription ??= service.routes.listen(_openRoute);
-    final pending = service.takePendingRoute();
-    if (pending != null) _openRoute(pending);
-  }
-
-  void _openRoute(String route) {
-    if (!mounted || !widget.enabled || !route.startsWith('/')) return;
-    widget.router.push(route);
-  }
-
   @override
   void dispose() {
-    _routeSubscription?.cancel();
     _chatSubscription?.cancel();
     _chatTimer?.cancel();
     super.dispose();
@@ -140,11 +118,7 @@ class _ForegroundNotificationLayerState
         if (!mounted) return;
         if (socialSuppressed || route == null) {
           ref.read(notificationControllerProvider.notifier).dismissBanner();
-          return;
         }
-        ref
-            .read(localNotificationServiceProvider)
-            .showSocial(notification, route);
       });
     }
     return Stack(

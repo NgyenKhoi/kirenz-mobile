@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../shared/widgets/state_views.dart';
 import '../../../../shared/widgets/user_avatar.dart';
 import '../../../../shared/widgets/content_frame.dart';
+import '../../../../app/navigation_state.dart';
 import '../../domain/entities/friend_models.dart';
 import '../controllers/friends_controller.dart';
 
@@ -19,20 +20,38 @@ class FriendsScreen extends ConsumerStatefulWidget {
   ConsumerState<FriendsScreen> createState() => _FriendsScreenState();
 }
 
-class _FriendsScreenState extends ConsumerState<FriendsScreen> {
+class _FriendsScreenState extends ConsumerState<FriendsScreen>
+    with WidgetsBindingObserver {
   final _searchController = TextEditingController();
   Timer? _debounce;
   String _query = '';
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _debounce?.cancel();
     _searchController.dispose();
     super.dispose();
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed || !mounted) return;
+    final location = GoRouterState.of(context).uri.path;
+    if (location == '/friends') _refreshRequests(ref);
+  }
+
+  @override
   Widget build(BuildContext context) {
+    ref.listen(currentPrimaryDestinationProvider, (previous, next) {
+      if (next == 2 && previous != 2) _refreshRequests(ref);
+    });
     return DefaultTabController(
       key: ValueKey(widget.initialSegment),
       length: 3,
@@ -44,8 +63,11 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Friends'),
-          bottom: const TabBar(
-            tabs: [
+          bottom: TabBar(
+            onTap: (index) {
+              if (index == 0) _refreshRequests(ref);
+            },
+            tabs: const [
               Tab(text: 'Requests'),
               Tab(text: 'Suggestions'),
               Tab(text: 'Friends'),

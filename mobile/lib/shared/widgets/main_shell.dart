@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../features/chat/presentation/controllers/conversation_controller.dart';
 import '../../features/notifications/presentation/controllers/notification_controller.dart';
+import '../../app/navigation_state.dart';
 
 class MainShell extends ConsumerWidget {
   const MainShell({required this.navigationShell, super.key});
@@ -25,10 +26,13 @@ class MainShell extends ConsumerWidget {
       notificationControllerProvider.select((state) => state.unreadCount),
     );
     final destinations = _destinations(unread, socialUnread);
-    void selectDestination(int index) => navigationShell.goBranch(
-      index,
-      initialLocation: index == navigationShell.currentIndex,
-    );
+    void selectDestination(int index) {
+      ref.read(currentPrimaryDestinationProvider.notifier).state = index;
+      navigationShell.goBranch(
+        index,
+        initialLocation: index == navigationShell.currentIndex,
+      );
+    }
 
     return LayoutBuilder(
       builder: (context, constraints) {

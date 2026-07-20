@@ -23,6 +23,12 @@ void main() {
                     'id': 'block-1',
                     'blockedUserId': 'user-2',
                     'createdAt': '2026-07-15T01:00:00Z',
+                    'blockedUser': {
+                      'id': 'user-2',
+                      'username': 'mai',
+                      'displayName': 'Mai Nguyen',
+                      'avatarUrl': 'https://example.test/mai.jpg',
+                    },
                   },
                 ]
               : null;
@@ -46,6 +52,9 @@ void main() {
     expect(status.blockedByViewer, isFalse);
     expect(status.blockedViewer, isTrue);
     expect(blocked.single.blockedUserId, 'user-2');
+    expect(blocked.single.resolvedName, 'Mai Nguyen');
+    expect(blocked.single.username, 'mai');
+    expect(blocked.single.avatarUrl, 'https://example.test/mai.jpg');
     expect(paths, [
       'GET /blocks/status/user-2',
       'GET /blocks',

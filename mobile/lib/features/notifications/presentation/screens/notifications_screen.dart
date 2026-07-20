@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../data/services/local_notification_service.dart';
 import '../../domain/entities/social_notification.dart';
 import '../controllers/notification_controller.dart';
 import '../notification_routing.dart';
@@ -36,11 +35,6 @@ class NotificationsScreen extends ConsumerWidget {
           ],
         ),
         actions: [
-          IconButton(
-            tooltip: 'Device notification settings',
-            onPressed: () => _showPermissionSheet(context, ref),
-            icon: const Icon(Icons.notifications_active_outlined),
-          ),
           if (state.unreadCount > 0)
             TextButton(
               onPressed: state.markingAll ? null : controller.markAllRead,
@@ -55,93 +49,94 @@ class NotificationsScreen extends ConsumerWidget {
       ),
       body: KirenzContentFrame(
         child: RefreshIndicator(
-        onRefresh: controller.refresh,
-        child: CustomScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          slivers: [
-            if (state.isCached)
-              SliverToBoxAdapter(
-                child: _Notice(
-                  icon: Icons.cloud_off_outlined,
-                  message: state.cachedAt == null
-                      ? 'Showing saved alerts while offline.'
-                      : 'Showing saved alerts from ${_absoluteTime(state.cachedAt!)}.',
-                  action: 'Refresh',
-                  onAction: controller.refresh,
+          onRefresh: controller.refresh,
+          child: CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: [
+              if (state.isCached)
+                SliverToBoxAdapter(
+                  child: _Notice(
+                    icon: Icons.cloud_off_outlined,
+                    message: state.cachedAt == null
+                        ? 'Showing saved alerts while offline.'
+                        : 'Showing saved alerts from ${_absoluteTime(state.cachedAt!)}.',
+                    action: 'Refresh',
+                    onAction: controller.refresh,
+                  ),
                 ),
-              ),
-            if (state.connectionStatus == NotificationConnectionStatus.failed ||
-                state.connectionStatus ==
-                    NotificationConnectionStatus.reconnecting)
-              _connectionNotice(state, controller),
-            if (state.countError != null)
-              SliverToBoxAdapter(
-                child: _Notice(
-                  icon: Icons.sync_problem_outlined,
-                  message: 'Unread count unavailable. ${state.countError!}',
-                  action: 'Retry',
-                  error: true,
-                  onAction: controller.refresh,
+              if (state.connectionStatus ==
+                      NotificationConnectionStatus.failed ||
+                  state.connectionStatus ==
+                      NotificationConnectionStatus.reconnecting)
+                _connectionNotice(state, controller),
+              if (state.countError != null)
+                SliverToBoxAdapter(
+                  child: _Notice(
+                    icon: Icons.sync_problem_outlined,
+                    message: 'Unread count unavailable. ${state.countError!}',
+                    action: 'Retry',
+                    error: true,
+                    onAction: controller.refresh,
+                  ),
                 ),
-              ),
-            if (state.actionError != null)
-              SliverToBoxAdapter(
-                child: _Notice(
-                  icon: Icons.error_outline,
-                  message: state.actionError!,
-                  action: 'Refresh',
-                  error: true,
-                  onAction: controller.refresh,
+              if (state.actionError != null)
+                SliverToBoxAdapter(
+                  child: _Notice(
+                    icon: Icons.error_outline,
+                    message: state.actionError!,
+                    action: 'Refresh',
+                    error: true,
+                    onAction: controller.refresh,
+                  ),
                 ),
-              ),
-            if (state.listLoading && state.items.isEmpty)
-              SliverPadding(
-                padding: const EdgeInsets.all(16),
-                sliver: SliverList.list(
-                  children: const [
-                    _NotificationSkeleton(),
-                    SizedBox(height: 10),
-                    _NotificationSkeleton(),
-                    SizedBox(height: 10),
-                    _NotificationSkeleton(),
-                  ],
-                ),
-              )
-            else if (state.listError != null && state.items.isEmpty)
-              SliverFillRemaining(
-                hasScrollBody: false,
-                child: KirenzStateView(
-                  icon: Icons.cloud_off_outlined,
-                  title: 'Could not load alerts',
-                  message: state.listError!,
-                  actionLabel: 'Retry',
-                  isError: true,
-                  onAction: controller.refresh,
-                ),
-              )
-            else if (state.items.isEmpty)
-              const SliverFillRemaining(
-                hasScrollBody: false,
-                child: KirenzStateView(
-                  icon: Icons.notifications_none,
-                  title: 'You are all caught up',
-                  message: 'Friend and social activity will appear here.',
-                ),
-              )
-            else ...[
-              if (today.isNotEmpty) ...[
-                const _SectionHeader('Today'),
-                _NotificationList(items: today),
+              if (state.listLoading && state.items.isEmpty)
+                SliverPadding(
+                  padding: const EdgeInsets.all(16),
+                  sliver: SliverList.list(
+                    children: const [
+                      _NotificationSkeleton(),
+                      SizedBox(height: 10),
+                      _NotificationSkeleton(),
+                      SizedBox(height: 10),
+                      _NotificationSkeleton(),
+                    ],
+                  ),
+                )
+              else if (state.listError != null && state.items.isEmpty)
+                SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: KirenzStateView(
+                    icon: Icons.cloud_off_outlined,
+                    title: 'Could not load alerts',
+                    message: state.listError!,
+                    actionLabel: 'Retry',
+                    isError: true,
+                    onAction: controller.refresh,
+                  ),
+                )
+              else if (state.items.isEmpty)
+                const SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: KirenzStateView(
+                    icon: Icons.notifications_none,
+                    title: 'You are all caught up',
+                    message: 'Friend and social activity will appear here.',
+                  ),
+                )
+              else ...[
+                if (today.isNotEmpty) ...[
+                  const _SectionHeader('Today'),
+                  _NotificationList(items: today),
+                ],
+                if (earlier.isNotEmpty) ...[
+                  const _SectionHeader('Earlier'),
+                  _NotificationList(items: earlier),
+                ],
+                const SliverToBoxAdapter(child: SizedBox(height: 100)),
               ],
-              if (earlier.isNotEmpty) ...[
-                const _SectionHeader('Earlier'),
-                _NotificationList(items: earlier),
-              ],
-              const SliverToBoxAdapter(child: SizedBox(height: 100)),
             ],
-          ],
+          ),
         ),
-      ),
       ),
     );
   }
@@ -320,68 +315,6 @@ Future<void> _openNotification(
   context.push(route);
 }
 
-Future<void> _showPermissionSheet(BuildContext context, WidgetRef ref) async {
-  final service = ref.read(localNotificationServiceProvider);
-  var status = await service.permissionStatus();
-  if (!context.mounted) return;
-  await showModalBottomSheet<void>(
-    context: context,
-    useSafeArea: true,
-    builder: (context) => StatefulBuilder(
-      builder: (context, setState) => Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.notifications_active_outlined, size: 44),
-            const SizedBox(height: 12),
-            Text(
-              'Device notifications',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 8),
-            Text(_permissionMessage(status), textAlign: TextAlign.center),
-            const SizedBox(height: 20),
-            if (status == LocalNotificationPermission.notDetermined)
-              FilledButton(
-                onPressed: () async {
-                  final next = await service.requestPermission();
-                  if (context.mounted) setState(() => status = next);
-                },
-                child: const Text('Allow notifications'),
-              )
-            else if (status == LocalNotificationPermission.deniedOrRestricted)
-              const Text(
-                'Open the Kirenz app entry in your device Settings to enable notifications. In-app alerts and badges continue to work.',
-                textAlign: TextAlign.center,
-              ),
-            const SizedBox(height: 8),
-            TextButton(
-              onPressed: () => context.pop(),
-              child: const Text('Close'),
-            ),
-          ],
-        ),
-      ),
-    ),
-  );
-}
-
-String _permissionMessage(
-  LocalNotificationPermission status,
-) => switch (status) {
-  LocalNotificationPermission.authorized =>
-    'Kirenz may show social alerts in the system notification tray.',
-  LocalNotificationPermission.provisional =>
-    'Quiet provisional notifications are enabled. You can change this in system Settings.',
-  LocalNotificationPermission.notDetermined =>
-    'Allow Kirenz to show social activity while the app is open. This is optional.',
-  LocalNotificationPermission.deniedOrRestricted =>
-    'System notifications are disabled or restricted.',
-  LocalNotificationPermission.unavailable =>
-    'System notifications are unavailable on this platform.',
-};
-
 class _SectionHeader extends StatelessWidget {
   const _SectionHeader(this.title);
 
@@ -480,4 +413,3 @@ String _absoluteTime(DateTime value) {
   final local = value.toLocal();
   return '${local.day}/${local.month}/${local.year} ${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
 }
-

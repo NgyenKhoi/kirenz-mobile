@@ -9,6 +9,8 @@ import '../../../comments/data/repositories/discussion_repository.dart';
 import '../../data/repositories/post_repository.dart';
 import '../../domain/entities/post.dart';
 import '../widgets/post_card.dart';
+import '../../../../shared/widgets/content_frame.dart';
+import '../../../../shared/widgets/state_views.dart';
 
 class PostDetailScreen extends ConsumerStatefulWidget {
   const PostDetailScreen({required this.postId, super.key});
@@ -82,7 +84,9 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
           ? null
           : CommentComposer(postId: post.id),
       body: _loading && post == null
-          ? const Center(child: CircularProgressIndicator())
+          ? const KirenzContentFrame(
+              child: KirenzSkeletonList(itemCount: 2, itemHeight: 220),
+            )
           : post == null
           ? Center(
               child: Padding(
@@ -102,61 +106,71 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                 ),
               ),
             )
-          : RefreshIndicator(
-              onRefresh: _load,
-              child: ListView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.all(16),
-                children: [
-                  PostCard(
-                    post: post,
-                    currentUserId: userId,
-                    pending: _pending,
-                    isDetail: true,
-                    onEdit: (content, privacy, media) => _run(() async {
-                      final updated = await ref
-                          .read(postRepositoryProvider)
-                          .update(
-                            postId: post.id,
-                            content: content,
-                            privacy: privacy,
-                            media: media,
-                          );
-                      setState(() => _post = updated);
-                      await ref
-                          .read(feedControllerProvider.notifier)
-                          .reconcileCanonical(updated);
-                    }),
-                    onDelete: () async {
-                      await _run(() async {
-                        await ref.read(postRepositoryProvider).delete(post.id);
+          : KirenzContentFrame(
+              child: RefreshIndicator(
+                onRefresh: _load,
+                child: ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.only(top: 8, bottom: 24),
+                  children: [
+                    PostCard(
+                      post: post,
+                      currentUserId: userId,
+                      pending: _pending,
+                      isDetail: true,
+                      onEdit: (content, privacy, media) => _run(() async {
+                        final updated = await ref
+                            .read(postRepositoryProvider)
+                            .update(
+                              postId: post.id,
+                              content: content,
+                              privacy: privacy,
+                              media: media,
+                            );
+                        setState(() => _post = updated);
                         await ref
                             .read(feedControllerProvider.notifier)
-                            .removeCanonical(post.id);
-                        if (!mounted) return;
-                        this.context.pop();
-                      });
-                    },
-                    onShare: (caption) => _run(() async {
-                      final shared = await ref
+                            .reconcileCanonical(updated);
+                      }),
+                      onDelete: () async {
+                        await _run(() async {
+                          await ref
+                              .read(postRepositoryProvider)
+                              .delete(post.id);
+                          await ref
+                              .read(feedControllerProvider.notifier)
+                              .removeCanonical(post.id);
+                          if (!mounted) return;
+                          this.context.pop();
+                        });
+                      },
+                      onShare: (caption) => _run(() async {
+                        final shared = await ref
+                            .read(postRepositoryProvider)
+                            .share(post.id, caption);
+                        await ref
+                            .read(feedControllerProvider.notifier)
+                            .insertCreated(shared);
+                      }),
+                      onReact: _reactPost,
+                      onUploadImage: (image, onProgress) => ref
                           .read(postRepositoryProvider)
-                          .share(post.id, caption);
-                      await ref
-                          .read(feedControllerProvider.notifier)
-                          .insertCreated(shared);
-                    }),
-                    onReact: _reactPost,
-                    onUploadImage: (image, onProgress) => ref
-                        .read(postRepositoryProvider)
-                        .uploadImage(
-                          image,
-                          onProgress: (sent, total) =>
-                              onProgress(total <= 0 ? 0 : sent / total),
-                        ),
-                  ),
-                  const SizedBox(height: 18),
-                  DiscussionSection(postId: post.id, currentUserId: userId),
-                ],
+                          .uploadImage(
+                            image,
+                            onProgress: (sent, total) =>
+                                onProgress(total <= 0 ? 0 : sent / total),
+                          ),
+                    ),
+                    const SizedBox(height: 8),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: DiscussionSection(
+                        postId: post.id,
+                        currentUserId: userId,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
     );

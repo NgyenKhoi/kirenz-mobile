@@ -39,114 +39,115 @@ class FeedScreen extends ConsumerWidget {
       ),
       body: KirenzContentFrame(
         child: RefreshIndicator(
-        onRefresh: () => controller.load(refresh: true),
-        child: CustomScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          slivers: [
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(0, 8, 0, 4),
-              sliver: SliverToBoxAdapter(
-                child: _CreateEntry(
-                  avatarUrl: session.user?.avatarUrl,
-                  name: session.user?.displayName ?? 'there',
-                  onTap: () => _openComposer(context, ref),
-                ),
-              ),
-            ),
-            if (state.isCached)
-              SliverToBoxAdapter(
-                child: _FeedNotice(
-                  message: 'Showing saved posts while offline.',
-                  action: 'Refresh',
-                  onAction: () => controller.load(refresh: true),
-                ),
-              ),
-            if (state.error != null && state.posts.isNotEmpty)
-              SliverToBoxAdapter(
-                child: _FeedNotice(
-                  message: state.error!,
-                  action: 'Retry',
-                  error: true,
-                  onAction: () => controller.load(refresh: true),
-                ),
-              ),
-            if (state.message != null)
-              SliverToBoxAdapter(child: _FeedNotice(message: state.message!)),
-            if (state.loading && state.posts.isEmpty)
+          onRefresh: () => controller.load(refresh: true),
+          child: CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: [
               SliverPadding(
-                padding: const EdgeInsets.all(16),
-                sliver: SliverList.list(
-                  children: const [
-                    _PostSkeleton(),
-                    SizedBox(height: 16),
-                    _PostSkeleton(),
-                    SizedBox(height: 16),
-                    _PostSkeleton(),
-                  ],
+                padding: const EdgeInsets.fromLTRB(0, 8, 0, 4),
+                sliver: SliverToBoxAdapter(
+                  child: _CreateEntry(
+                    avatarUrl: session.user?.avatarUrl,
+                    name: session.user?.displayName ?? 'there',
+                    onTap: () => _openComposer(context, ref),
+                  ),
                 ),
-              )
-            else if (state.error != null && state.posts.isEmpty)
-              SliverFillRemaining(
-                hasScrollBody: false,
-                child: KirenzStateView(
-                  icon: Icons.cloud_off_outlined,
-                  title: 'Could not load posts',
-                  message: state.error!,
-                  actionLabel: 'Retry',
-                  isError: true,
-                  onAction: controller.load,
+              ),
+              if (state.isCached)
+                SliverToBoxAdapter(
+                  child: _FeedNotice(
+                    message: 'Showing saved posts while offline.',
+                    action: 'Refresh',
+                    onAction: () => controller.load(refresh: true),
+                  ),
                 ),
-              )
-            else if (state.posts.isEmpty)
-              SliverFillRemaining(
-                hasScrollBody: false,
-                child: _FeedEmpty(
-                  icon: Icons.auto_awesome_outlined,
-                  title: 'Your first moment starts here',
-                  message: 'Create a post or discover people to follow.',
-                  action: 'Create post',
-                  onAction: () => _openComposer(context, ref),
-                  secondaryAction: () => context.go('/explore'),
+              if (state.error != null && state.posts.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: _FeedNotice(
+                    message: state.error!,
+                    action: 'Retry',
+                    error: true,
+                    onAction: () => controller.load(refresh: true),
+                  ),
                 ),
-              )
-            else
-              SliverPadding(
-                padding: const EdgeInsets.only(top: 4, bottom: 24),
-                sliver: SliverList.separated(
-                  itemCount: state.posts.length,
-                  separatorBuilder: (context, index) => const SizedBox(height: 8),
-                  itemBuilder: (context, index) {
-                    final post = state.posts[index];
-                    return PostCard(
-                      key: ValueKey(post.id),
-                      post: post,
-                      currentUserId: session.user?.id,
-                      pending: state.pendingPostIds.contains(post.id),
-                      onEdit: (content, privacy, media) => controller.update(
+              if (state.message != null)
+                SliverToBoxAdapter(child: _FeedNotice(message: state.message!)),
+              if (state.loading && state.posts.isEmpty)
+                SliverPadding(
+                  padding: const EdgeInsets.all(16),
+                  sliver: SliverList.list(
+                    children: const [
+                      _PostSkeleton(),
+                      SizedBox(height: 16),
+                      _PostSkeleton(),
+                      SizedBox(height: 16),
+                      _PostSkeleton(),
+                    ],
+                  ),
+                )
+              else if (state.error != null && state.posts.isEmpty)
+                SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: KirenzStateView(
+                    icon: Icons.cloud_off_outlined,
+                    title: 'Could not load posts',
+                    message: state.error!,
+                    actionLabel: 'Retry',
+                    isError: true,
+                    onAction: controller.load,
+                  ),
+                )
+              else if (state.posts.isEmpty)
+                SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: _FeedEmpty(
+                    icon: Icons.auto_awesome_outlined,
+                    title: 'Your first moment starts here',
+                    message: 'Create a post or discover people to follow.',
+                    action: 'Create post',
+                    onAction: () => _openComposer(context, ref),
+                    secondaryAction: () => context.go('/explore'),
+                  ),
+                )
+              else
+                SliverPadding(
+                  padding: const EdgeInsets.only(top: 4, bottom: 24),
+                  sliver: SliverList.separated(
+                    itemCount: state.posts.length,
+                    separatorBuilder: (context, index) =>
+                        const SizedBox(height: 8),
+                    itemBuilder: (context, index) {
+                      final post = state.posts[index];
+                      return PostCard(
+                        key: ValueKey(post.id),
                         post: post,
-                        content: content,
-                        privacy: privacy,
-                        media: media,
-                      ),
-                      onDelete: () async {
-                        await controller.delete(post);
-                      },
-                      onShare: (caption) => controller.share(post, caption),
-                      onReact: (reaction) => controller.react(post, reaction),
-                      onUploadImage: (image, onProgress) => ref
-                          .read(postRepositoryProvider)
-                          .uploadImage(
-                            image,
-                            onProgress: (sent, total) =>
-                                onProgress(total <= 0 ? 0 : sent / total),
-                          ),
-                    );
-                  },
+                        currentUserId: session.user?.id,
+                        pending: state.pendingPostIds.contains(post.id),
+                        onEdit: (content, privacy, media) => controller.update(
+                          post: post,
+                          content: content,
+                          privacy: privacy,
+                          media: media,
+                        ),
+                        onDelete: () async {
+                          await controller.delete(post);
+                        },
+                        onShare: (caption) => controller.share(post, caption),
+                        onReact: (reaction) => controller.react(post, reaction),
+                        onUploadImage: (image, onProgress) => ref
+                            .read(postRepositoryProvider)
+                            .uploadImage(
+                              image,
+                              onProgress: (sent, total) =>
+                                  onProgress(total <= 0 ? 0 : sent / total),
+                            ),
+                      );
+                    },
+                  ),
                 ),
-              ),
-          ],
+            ],
+          ),
         ),
-      ),
       ),
     );
   }
@@ -228,219 +229,246 @@ class _PostComposerSheetState extends ConsumerState<_PostComposerSheet> {
     final state = ref.watch(postComposerControllerProvider);
     final controller = ref.read(postComposerControllerProvider.notifier);
     final friends = ref.watch(friendsProvider(null));
-    return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
-      child: SizedBox(
-        height: MediaQuery.sizeOf(context).height * .88,
-        child: Column(
-          children: [
-            AppBar(
-              automaticallyImplyLeading: false,
-              title: const Text('Create post'),
-              leading: IconButton(
-                tooltip: 'Close',
-                onPressed: state.submitting ? null : () => context.pop(),
-                icon: const Icon(Icons.close),
-              ),
-              actions: [
-                Padding(
-                  padding: const EdgeInsets.only(right: 12),
-                  child: FilledButton(
-                    onPressed: state.canSubmit ? _confirmAndSubmit : null,
-                    child: state.submitting
-                        ? const SizedBox.square(
-                            dimension: 18,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final keyboard = MediaQuery.viewInsetsOf(context).bottom;
+        final availableHeight = (constraints.maxHeight - keyboard).clamp(
+          0.0,
+          constraints.maxHeight,
+        );
+        return AnimatedPadding(
+          padding: EdgeInsets.only(bottom: keyboard),
+          duration: MediaQuery.disableAnimationsOf(context)
+              ? Duration.zero
+              : const Duration(milliseconds: 180),
+          curve: Curves.easeOutCubic,
+          child: SizedBox(
+            height: availableHeight,
+            child: Column(
+              children: [
+                AppBar(
+                  automaticallyImplyLeading: false,
+                  title: const Text('Create post'),
+                  leading: IconButton(
+                    tooltip: 'Close',
+                    onPressed: state.submitting ? null : () => context.pop(),
+                    icon: const Icon(Icons.close),
+                  ),
+                  actions: [
+                    Padding(
+                      padding: const EdgeInsets.only(right: 12),
+                      child: FilledButton(
+                        onPressed: state.canSubmit ? _submit : null,
+                        child: state.submitting
+                            ? const SizedBox.square(
+                                dimension: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Text('Post'),
+                      ),
+                    ),
+                  ],
+                ),
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsets.all(16),
+                    children: [
+                      TextField(
+                        controller: _content,
+                        minLines: 4,
+                        maxLines: 10,
+                        autofocus: true,
+                        onChanged: controller.updateContent,
+                        decoration: const InputDecoration(
+                          hintText: "What's making you smile?",
+                          border: InputBorder.none,
+                          filled: false,
+                        ),
+                      ),
+                      DropdownButtonFormField<PostPrivacy>(
+                        initialValue: state.privacy,
+                        decoration: const InputDecoration(
+                          labelText: 'Who can see this?',
+                        ),
+                        items: const [
+                          DropdownMenuItem(
+                            value: PostPrivacy.public,
+                            child: Text('Public'),
+                          ),
+                          DropdownMenuItem(
+                            value: PostPrivacy.friends,
+                            child: Text('Friends'),
+                          ),
+                          DropdownMenuItem(
+                            value: PostPrivacy.onlyMe,
+                            child: Text('Only me'),
+                          ),
+                        ],
+                        onChanged: (value) {
+                          if (value != null) controller.updatePrivacy(value);
+                        },
+                      ),
+                      const SizedBox(height: 14),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: state.submitting ? null : _pickImages,
+                              icon: const Icon(Icons.photo_library_outlined),
+                              label: Text(
+                                state.images.isEmpty
+                                    ? 'Add photos'
+                                    : '${state.images.length}/10 photos',
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (state.images.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          height: 112,
+                          child: ListView.separated(
+                            scrollDirection: Axis.horizontal,
+                            itemCount: state.images.length,
+                            separatorBuilder: (_, _) =>
+                                const SizedBox(width: 8),
+                            itemBuilder: (context, index) {
+                              final image = state.images[index];
+                              return SizedBox.square(
+                                dimension: 112,
+                                child: _DraftImageTile(
+                                  image: image,
+                                  onRemove: () =>
+                                      controller.removeImage(image.path),
+                                  onRetry: () =>
+                                      controller.retryImage(image.path),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 16),
+                      friends.when(
+                        loading: () => const SizedBox(
+                          height: 48,
+                          child: Center(
                             child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('Post'),
+                          ),
+                        ),
+                        error: (_, _) => const Text(
+                          'Friend tagging is temporarily unavailable.',
+                        ),
+                        data: (items) {
+                          final query = _tagQuery.trim().toLowerCase();
+                          final visible = query.isEmpty
+                              ? items
+                              : items
+                                    .where(
+                                      (friend) =>
+                                          friend.resolvedName
+                                              .toLowerCase()
+                                              .contains(query) ||
+                                          (friend.username ?? '')
+                                              .toLowerCase()
+                                              .contains(query),
+                                    )
+                                    .toList(growable: false);
+                          final selected = items
+                              .where(
+                                (friend) => state.taggedUserIds.contains(
+                                  friend.friendId,
+                                ),
+                              )
+                              .toList(growable: false);
+                          return ExpansionTile(
+                            tilePadding: EdgeInsets.zero,
+                            title: Text(
+                              state.taggedUserIds.isEmpty
+                                  ? 'Tag friends'
+                                  : '${state.taggedUserIds.length} friends tagged',
+                            ),
+                            children: [
+                              if (selected.isNotEmpty)
+                                Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: Wrap(
+                                    spacing: 6,
+                                    runSpacing: 6,
+                                    children: selected
+                                        .map(
+                                          (friend) => InputChip(
+                                            label: Text(friend.resolvedName),
+                                            onDeleted: state.submitting
+                                                ? null
+                                                : () => controller
+                                                      .toggleTaggedUser(
+                                                        friend.friendId,
+                                                      ),
+                                          ),
+                                        )
+                                        .toList(growable: false),
+                                  ),
+                                ),
+                              const SizedBox(height: 8),
+                              TextField(
+                                controller: _tagSearch,
+                                enabled: !state.submitting,
+                                onChanged: (value) =>
+                                    setState(() => _tagQuery = value),
+                                decoration: const InputDecoration(
+                                  prefixIcon: Icon(Icons.search),
+                                  hintText: 'Search friends',
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              if (visible.isEmpty)
+                                const Padding(
+                                  padding: EdgeInsets.all(16),
+                                  child: Text('No matching friends'),
+                                )
+                              else
+                                ...visible.map(
+                                  (friend) => CheckboxListTile(
+                                    value: state.taggedUserIds.contains(
+                                      friend.friendId,
+                                    ),
+                                    title: Text(friend.resolvedName),
+                                    subtitle:
+                                        friend.username?.isNotEmpty == true
+                                        ? Text('@${friend.username}')
+                                        : null,
+                                    onChanged: state.submitting
+                                        ? null
+                                        : (_) => controller.toggleTaggedUser(
+                                            friend.friendId,
+                                          ),
+                                  ),
+                                ),
+                            ],
+                          );
+                        },
+                      ),
+                      if (state.error != null) ...[
+                        const SizedBox(height: 12),
+                        Text(
+                          state.error!,
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.error,
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
               ],
             ),
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                  TextField(
-                    controller: _content,
-                    minLines: 4,
-                    maxLines: 10,
-                    autofocus: true,
-                    onChanged: controller.updateContent,
-                    decoration: const InputDecoration(
-                      hintText: "What's making you smile?",
-                      border: InputBorder.none,
-                    ),
-                  ),
-                  DropdownButtonFormField<PostPrivacy>(
-                    initialValue: state.privacy,
-                    decoration: const InputDecoration(
-                      labelText: 'Who can see this?',
-                    ),
-                    items: const [
-                      DropdownMenuItem(
-                        value: PostPrivacy.public,
-                        child: Text('Public'),
-                      ),
-                      DropdownMenuItem(
-                        value: PostPrivacy.friends,
-                        child: Text('Friends'),
-                      ),
-                      DropdownMenuItem(
-                        value: PostPrivacy.onlyMe,
-                        child: Text('Only me'),
-                      ),
-                    ],
-                    onChanged: (value) {
-                      if (value != null) controller.updatePrivacy(value);
-                    },
-                  ),
-                  const SizedBox(height: 14),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: state.submitting ? null : _pickImages,
-                          icon: const Icon(Icons.photo_library_outlined),
-                          label: Text(
-                            state.images.isEmpty
-                                ? 'Add photos'
-                                : '${state.images.length}/10 photos',
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (state.images.isNotEmpty) ...[
-                    const SizedBox(height: 12),
-                    GridView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 3,
-                            crossAxisSpacing: 6,
-                            mainAxisSpacing: 6,
-                          ),
-                      itemCount: state.images.length,
-                      itemBuilder: (context, index) {
-                        final image = state.images[index];
-                        return _DraftImageTile(
-                          image: image,
-                          onRemove: () => controller.removeImage(image.path),
-                          onRetry: () => controller.retryImage(image.path),
-                        );
-                      },
-                    ),
-                  ],
-                  const SizedBox(height: 16),
-                  friends.when(
-                    loading: () => const LinearProgressIndicator(),
-                    error: (_, _) => const Text(
-                      'Friend tagging is temporarily unavailable.',
-                    ),
-                    data: (items) {
-                      final query = _tagQuery.trim().toLowerCase();
-                      final visible = query.isEmpty
-                          ? items
-                          : items
-                                .where(
-                                  (friend) =>
-                                      friend.resolvedName
-                                          .toLowerCase()
-                                          .contains(query) ||
-                                      (friend.username ?? '')
-                                          .toLowerCase()
-                                          .contains(query),
-                                )
-                                .toList(growable: false);
-                      final selected = items
-                          .where(
-                            (friend) =>
-                                state.taggedUserIds.contains(friend.friendId),
-                          )
-                          .toList(growable: false);
-                      return ExpansionTile(
-                        tilePadding: EdgeInsets.zero,
-                        title: Text(
-                          state.taggedUserIds.isEmpty
-                              ? 'Tag friends'
-                              : '${state.taggedUserIds.length} friends tagged',
-                        ),
-                        children: [
-                          if (selected.isNotEmpty)
-                            Align(
-                              alignment: Alignment.centerLeft,
-                              child: Wrap(
-                                spacing: 6,
-                                runSpacing: 6,
-                                children: selected
-                                    .map(
-                                      (friend) => InputChip(
-                                        label: Text(friend.resolvedName),
-                                        onDeleted: state.submitting
-                                            ? null
-                                            : () => controller.toggleTaggedUser(
-                                                friend.friendId,
-                                              ),
-                                      ),
-                                    )
-                                    .toList(growable: false),
-                              ),
-                            ),
-                          const SizedBox(height: 8),
-                          TextField(
-                            controller: _tagSearch,
-                            enabled: !state.submitting,
-                            onChanged: (value) =>
-                                setState(() => _tagQuery = value),
-                            decoration: const InputDecoration(
-                              prefixIcon: Icon(Icons.search),
-                              hintText: 'Search friends',
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          if (visible.isEmpty)
-                            const Padding(
-                              padding: EdgeInsets.all(16),
-                              child: Text('No matching friends'),
-                            )
-                          else
-                            ...visible.map(
-                              (friend) => CheckboxListTile(
-                                value: state.taggedUserIds.contains(
-                                  friend.friendId,
-                                ),
-                                title: Text(friend.resolvedName),
-                                subtitle: friend.username?.isNotEmpty == true
-                                    ? Text('@${friend.username}')
-                                    : null,
-                                onChanged: state.submitting
-                                    ? null
-                                    : (_) => controller.toggleTaggedUser(
-                                        friend.friendId,
-                                      ),
-                              ),
-                            ),
-                        ],
-                      );
-                    },
-                  ),
-                  if (state.error != null) ...[
-                    const SizedBox(height: 12),
-                    Text(
-                      state.error!,
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.error,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 
@@ -472,25 +500,7 @@ class _PostComposerSheetState extends ConsumerState<_PostComposerSheet> {
     }
   }
 
-  Future<void> _confirmAndSubmit() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Share this moment?'),
-        content: const Text('Your post will use the selected privacy setting.'),
-        actions: [
-          TextButton(
-            onPressed: () => context.pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => context.pop(true),
-            child: const Text('Post'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !mounted) return;
+  Future<void> _submit() async {
     final post = await ref
         .read(postComposerControllerProvider.notifier)
         .submit();

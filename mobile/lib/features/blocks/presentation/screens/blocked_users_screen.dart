@@ -61,15 +61,22 @@ class _BlockedUserTile extends ConsumerWidget {
     return Card(
       child: ListTile(
         leading: KirenzUserAvatar(
-          name: record.blockedUserId,
+          name: record.resolvedName,
+          imageUrl: record.avatarUrl,
           icon: Icons.person_off_outlined,
         ),
-        title: const Text(
-          'Blocked user',
+        title: Text(
+          record.resolvedName,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: TextStyle(fontWeight: FontWeight.w800),
         ),
         subtitle: Text(
-          '${record.blockedUserId}\nBlocked ${_date(record.createdAt)}',
+          [
+            if (record.username?.trim().isNotEmpty == true)
+              '@${record.username!.trim()}',
+            'Blocked ${_date(record.createdAt)}',
+          ].join('\n'),
         ),
         isThreeLine: true,
         trailing: OutlinedButton(
@@ -89,7 +96,7 @@ class _BlockedUserTile extends ConsumerWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: Text('Unblock ${record.blockedUserId}?'),
+        title: Text('Unblock ${record.resolvedName}?'),
         content: const Text(
           'Visibility and interactions will again depend on both users\' privacy settings.',
         ),
