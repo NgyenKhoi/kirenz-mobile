@@ -1,4 +1,3 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -9,6 +8,9 @@ import '../../../friends/domain/entities/friend_models.dart';
 import '../../../friends/presentation/controllers/friends_controller.dart';
 import '../../../posts/data/repositories/post_repository.dart';
 import '../../../posts/presentation/widgets/post_card.dart';
+import '../../../../shared/widgets/state_views.dart';
+import '../../../../shared/widgets/user_avatar.dart';
+import '../../../../shared/widgets/content_frame.dart';
 import '../controllers/explore_controller.dart';
 
 class ExploreScreen extends ConsumerStatefulWidget {
@@ -73,7 +75,8 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
     final related = relatedExplorePosts(feed.posts, explore.submittedQuery);
     return Scaffold(
       appBar: AppBar(title: const Text('Explore')),
-      body: RefreshIndicator(
+      body: KirenzContentFrame(
+        child: RefreshIndicator(
         onRefresh: () async {
           await feedController.load(refresh: true);
           if (explore.hasValidQuery) await exploreController.refreshPeople();
@@ -125,18 +128,24 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                 ),
               ),
             if (feed.loading && feed.posts.isEmpty)
-              const SliverFillRemaining(
-                hasScrollBody: false,
-                child: Center(child: CircularProgressIndicator()),
+              const SliverPadding(
+                padding: EdgeInsets.all(16),
+                sliver: SliverToBoxAdapter(
+                  child: SizedBox(
+                    height: 360,
+                    child: KirenzSkeletonList(itemCount: 3, itemHeight: 104),
+                  ),
+                ),
               )
             else if (feed.error != null && feed.posts.isEmpty)
               SliverFillRemaining(
                 hasScrollBody: false,
-                child: _ExploreState(
+                child: KirenzStateView(
                   icon: Icons.cloud_off_outlined,
                   title: 'Could not load Explore',
                   message: feed.error!,
-                  action: 'Retry',
+                  actionLabel: 'Retry',
+                  isError: true,
                   onAction: feedController.load,
                 ),
               )
@@ -156,13 +165,15 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
               ),
               if (!explore.hasValidQuery)
                 const SliverPadding(
-                  padding: EdgeInsets.all(24),
+                  padding: EdgeInsets.fromLTRB(16, 12, 16, 32),
                   sliver: SliverToBoxAdapter(
-                    child: _ExploreState(
-                      icon: Icons.manage_search_outlined,
-                      title: 'Discover Kirenz',
-                      message:
-                          'Enter at least two characters to find people and related posts.',
+                    child: Card(
+                      child: KirenzStateView(
+                        icon: Icons.manage_search_outlined,
+                        title: 'Discover Kirenz',
+                        message:
+                            'Enter at least two characters to find people and related posts.',
+                      ),
                     ),
                   ),
                 )
@@ -244,6 +255,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
           ],
         ),
       ),
+      ),
     );
   }
 }
@@ -322,20 +334,19 @@ class _PeopleResults extends ConsumerWidget {
       );
     }
     final pending = ref.watch(friendActionControllerProvider);
-    return SliverList.builder(
-      itemCount: state.people.length,
-      itemBuilder: (context, index) {
+    return SliverPadding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      sliver: SliverList.separated(
+        itemCount: state.people.length,
+        separatorBuilder: (_, _) => const SizedBox(height: 8),
+        itemBuilder: (context, index) {
         final user = state.people[index];
-        return ListTile(
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-          leading: CircleAvatar(
-            backgroundImage: user.avatarUrl?.isNotEmpty == true
-                ? CachedNetworkImageProvider(user.avatarUrl!)
-                : null,
-            child: user.avatarUrl?.isNotEmpty == true
-                ? null
-                : Text(user.resolvedName[0].toUpperCase()),
-          ),
+        return Card(
+          child: ListTile(
+            leading: KirenzUserAvatar(
+              name: user.resolvedName,
+              imageUrl: user.avatarUrl,
+            ),
           title: Text(user.resolvedName),
           subtitle: Text(
             [
@@ -343,18 +354,20 @@ class _PeopleResults extends ConsumerWidget {
               if (user.bio?.trim().isNotEmpty == true) user.bio!.trim(),
             ].join(' · '),
           ),
-          onTap: () => context.push(
+            onTap: () => context.push(
             user.relationshipStatus == RelationshipStatus.self
                 ? '/profile/me'
                 : '/profile/${user.id}',
           ),
-          trailing: _RelationshipAction(
+            trailing: _RelationshipAction(
             user: user,
             pending: pending.contains(user.id),
             onComplete: onActionComplete,
+            ),
           ),
         );
-      },
+        },
+      ),
     );
   }
 }

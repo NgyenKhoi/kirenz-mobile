@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import '../../../auth/presentation/controllers/session_controller.dart';
 import '../../../blocks/domain/entities/block_models.dart';
 import '../../../blocks/presentation/controllers/block_controller.dart';
+import '../../../../shared/widgets/user_avatar.dart';
 import '../controllers/conversation_controller.dart';
 import '../controllers/chat_realtime_controller.dart';
 import '../../domain/entities/conversation.dart';
@@ -355,13 +356,23 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
       ],
     );
     if (result == null || !mounted) return;
-    final files = result.files
-        .map(_draftAttachmentFor)
-        .whereType<DraftAttachment>()
-        .toList(growable: false);
-    ref
-        .read(messageControllerProvider(conversationId).notifier)
-        .addAttachments(files);
+    final files = <DraftAttachment>[];
+    final rejected = <String>[];
+    for (final file in result.files) {
+      final attachment = _draftAttachmentFor(file);
+      if (attachment == null) {
+        rejected.add('${file.name} is not a supported image, video, PDF, or DOCX file.');
+      } else {
+        files.add(attachment);
+      }
+    }
+    final controller = ref.read(
+      messageControllerProvider(conversationId).notifier,
+    );
+    if (files.isNotEmpty) controller.addAttachments(files);
+    if (rejected.isNotEmpty) {
+      controller.reportAttachmentError(rejected.join('\n'));
+    }
   }
 
   Future<void> _send(String conversationId) async {
@@ -519,6 +530,14 @@ class _MessageHistoryState extends State<_MessageHistory> {
               final previous = messageIndex == 0
                   ? null
                   : state.messages[messageIndex - 1];
+              final next = messageIndex == state.messages.length - 1
+                  ? null
+                  : state.messages[messageIndex + 1];
+              final groupedWithPrevious = _messagesAreGrouped(
+                previous,
+                message,
+              );
+              final groupedWithNext = _messagesAreGrouped(message, next);
               return Column(
                 children: [
                   if (previous == null ||
@@ -527,6 +546,9 @@ class _MessageHistoryState extends State<_MessageHistory> {
                   _MessageBubble(
                     message: message,
                     own: message.senderId == widget.currentUserId,
+                    showSender: !groupedWithPrevious,
+                    showAvatar: !groupedWithNext,
+                    compact: groupedWithPrevious,
                   ),
                 ],
               );
@@ -571,10 +593,19 @@ class _DateSeparator extends StatelessWidget {
 }
 
 class _MessageBubble extends StatelessWidget {
-  const _MessageBubble({required this.message, required this.own});
+  const _MessageBubble({
+    required this.message,
+    required this.own,
+    required this.showSender,
+    required this.showAvatar,
+    required this.compact,
+  });
 
   final ChatMessage message;
   final bool own;
+  final bool showSender;
+  final bool showAvatar;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -591,11 +622,9 @@ class _MessageBubble extends StatelessWidget {
       );
     }
     final colors = Theme.of(context).colorScheme;
-    return Align(
-      alignment: own ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        constraints: const BoxConstraints(maxWidth: 340),
-        margin: const EdgeInsets.only(bottom: 10),
+    final bubble = Container(
+        constraints: const BoxConstraints(maxWidth: 300),
+        margin: EdgeInsets.only(bottom: compact ? 3 : 10),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: own ? colors.primaryContainer : colors.surfaceContainerLow,
@@ -604,7 +633,7 @@ class _MessageBubble extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (!own)
+            if (!own && showSender)
               Text(
                 message.senderName,
                 style: Theme.of(
@@ -624,6 +653,26 @@ class _MessageBubble extends StatelessWidget {
             ),
           ],
         ),
+      );
+    return Align(
+      alignment: own ? Alignment.centerRight : Alignment.centerLeft,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          if (!own) ...[
+            if (showAvatar)
+              KirenzUserAvatar(
+                name: message.senderName,
+                imageUrl: message.senderAvatar,
+                radius: 16,
+              )
+            else
+              const SizedBox(width: 32),
+            const SizedBox(width: 6),
+          ],
+          Flexible(child: bubble),
+        ],
       ),
     );
   }
@@ -967,6 +1016,17 @@ bool _sameDay(DateTime? first, DateTime? second) {
   final a = first.toLocal();
   final b = second.toLocal();
   return a.year == b.year && a.month == b.month && a.day == b.day;
+}
+
+bool _messagesAreGrouped(ChatMessage? first, ChatMessage? second) {
+  if (first == null || second == null) return false;
+  if (first.type == 'SYSTEM' || second.type == 'SYSTEM') return false;
+  if (first.status != 'ACTIVE' || second.status != 'ACTIVE') return false;
+  if (first.senderId != second.senderId || first.senderId.isEmpty) return false;
+  final firstTime = first.sentAt;
+  final secondTime = second.sentAt;
+  if (firstTime == null || secondTime == null) return false;
+  return secondTime.difference(firstTime).abs() <= const Duration(minutes: 5);
 }
 
 String _dateLabel(DateTime? value) {

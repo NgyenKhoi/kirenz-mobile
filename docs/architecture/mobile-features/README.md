@@ -84,3 +84,17 @@ Shared acceptance evidence for marking a feature `Done`:
 3. Run the app and walk through the document's behavior checklist.
 4. Leave backend-gap items disabled/hidden and record them; do not simulate success locally.
 5. Hand the runnable feature to the product owner for manual acceptance.
+
+Login google and try to test Chat websocket
+
+`On emulator`
+flutter run `
+  --dart-define=API_BASE_URL=http://10.0.2.2/api `
+  --dart-define=GOOGLE_SERVER_CLIENT_ID=720577131634-ijrdshbfrhacsi8b00gipuj06fjkhr16.apps.googleusercontent.com
+
+`On Kvndeptrai phone`
+flutter run `
+  --dart-define=API_BASE_URL=LAN_IP `
+  --dart-define=GOOGLE_SERVER_CLIENT_ID=720577131634-ijrdshbfrhacsi8b00gipuj06fjkhr16.apps.googleusercontent.com
+
+ý là để tui tự thêm ip của tui là được

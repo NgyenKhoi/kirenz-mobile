@@ -15,6 +15,8 @@ import '../../domain/entities/user_profile.dart';
 import '../controllers/profile_access_controller.dart';
 import '../controllers/profile_media_controller.dart';
 import '../widgets/profile_content_tabs.dart';
+import '../../../../shared/widgets/content_frame.dart';
+import '../../../../shared/widgets/state_views.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({this.userId, super.key});
@@ -58,8 +60,10 @@ class ProfileScreen extends ConsumerWidget {
               ),
           ],
         ),
-        body: SafeArea(
-          child: isCurrentUser
+        body: KirenzContentFrame(
+          maxWidth: 840,
+          child: SafeArea(
+            child: isCurrentUser
               ? currentProfile!.when(
                   data: (user) => _ProfileContent(
                     user: user,
@@ -88,6 +92,7 @@ class ProfileScreen extends ConsumerWidget {
                     onRetry: () => _invalidate(ref, false),
                   ),
                 ),
+          ),
         ),
       ),
     );
@@ -904,9 +909,11 @@ class _ProfileLoading extends StatelessWidget {
   const _ProfileLoading();
 
   @override
-  Widget build(BuildContext context) {
-    return const Center(child: CircularProgressIndicator());
-  }
+  Widget build(BuildContext context) => const KirenzSkeletonList(
+    itemCount: 4,
+    itemHeight: 112,
+    padding: EdgeInsets.all(16),
+  );
 }
 
 class _ProfileError extends StatelessWidget {
@@ -916,27 +923,14 @@ class _ProfileError extends StatelessWidget {
   final VoidCallback onRetry;
 
   @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.error_outline,
-              size: 48,
-              color: Theme.of(context).colorScheme.error,
-            ),
-            const SizedBox(height: 16),
-            Text(message, textAlign: TextAlign.center),
-            const SizedBox(height: 16),
-            FilledButton(onPressed: onRetry, child: const Text('Retry')),
-          ],
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => KirenzStateView(
+    icon: Icons.error_outline,
+    title: 'Could not load profile',
+    message: message,
+    actionLabel: 'Retry',
+    isError: true,
+    onAction: onRetry,
+  );
 }
 
 Future<void> _showAvatarActions(

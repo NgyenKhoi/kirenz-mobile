@@ -1,10 +1,12 @@
 import 'dart:async';
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../shared/widgets/state_views.dart';
+import '../../../../shared/widgets/user_avatar.dart';
+import '../../../../shared/widgets/content_frame.dart';
 import '../../domain/entities/friend_models.dart';
 import '../controllers/friends_controller.dart';
 
@@ -50,7 +52,8 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
             ],
           ),
         ),
-        body: Column(
+        body: KirenzContentFrame(
+          child: Column(
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
@@ -91,6 +94,7 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
                     ),
             ),
           ],
+          ),
         ),
       ),
     );
@@ -104,20 +108,24 @@ class _SearchResults extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     if (query.length < 2) {
-      return const _EmptyState(
+      return const KirenzStateView(
         icon: Icons.search,
         title: 'Enter at least 2 characters',
       );
     }
     final results = ref.watch(userSearchProvider(query));
     return results.when(
-      loading: () => const _LoadingList(),
-      error: (error, stack) => _ErrorState(
+      loading: () => const KirenzSkeletonList(itemCount: 6, itemHeight: 82),
+      error: (error, stack) => KirenzStateView(
+        icon: Icons.cloud_off_outlined,
+        title: 'Could not search people',
         message: error.toString(),
-        onRetry: () => ref.invalidate(userSearchProvider(query)),
+        actionLabel: 'Retry',
+        isError: true,
+        onAction: () => ref.invalidate(userSearchProvider(query)),
       ),
       data: (items) => items.isEmpty
-          ? const _EmptyState(
+          ? const KirenzStateView(
               icon: Icons.person_search_outlined,
               title: 'No people found',
             )
@@ -142,18 +150,24 @@ class _RequestsTab extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final incoming = ref.watch(incomingRequestsProvider);
     final outgoing = ref.watch(outgoingRequestsProvider);
-    if (incoming.isLoading || outgoing.isLoading) return const _LoadingList();
+    if (incoming.isLoading || outgoing.isLoading) {
+      return const KirenzSkeletonList(itemCount: 6, itemHeight: 82);
+    }
     final error = incoming.error ?? outgoing.error;
     if (error != null) {
-      return _ErrorState(
+      return KirenzStateView(
+        icon: Icons.cloud_off_outlined,
+        title: 'Could not load friend requests',
         message: error.toString(),
-        onRetry: () => _refreshRequests(ref),
+        actionLabel: 'Retry',
+        isError: true,
+        onAction: () => _refreshRequests(ref),
       );
     }
     final incomingItems = incoming.value ?? const <FriendRequest>[];
     final outgoingItems = outgoing.value ?? const <FriendRequest>[];
     if (incomingItems.isEmpty && outgoingItems.isEmpty) {
-      return const _EmptyState(
+      return const KirenzStateView(
         icon: Icons.mark_email_read_outlined,
         title: 'No pending friend requests',
       );
@@ -189,13 +203,17 @@ class _SuggestionsTab extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final data = ref.watch(friendSuggestionsProvider);
     return data.when(
-      loading: () => const _LoadingList(),
-      error: (error, stack) => _ErrorState(
+      loading: () => const KirenzSkeletonList(itemCount: 6, itemHeight: 82),
+      error: (error, stack) => KirenzStateView(
+        icon: Icons.cloud_off_outlined,
+        title: 'Could not load suggestions',
         message: error.toString(),
-        onRetry: () => ref.invalidate(friendSuggestionsProvider),
+        actionLabel: 'Retry',
+        isError: true,
+        onAction: () => ref.invalidate(friendSuggestionsProvider),
       ),
       data: (items) => items.isEmpty
-          ? const _EmptyState(
+          ? const KirenzStateView(
               icon: Icons.group_add_outlined,
               title: 'No suggestions right now',
             )
@@ -221,13 +239,17 @@ class _FriendsTab extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final data = ref.watch(friendsProvider(null));
     return data.when(
-      loading: () => const _LoadingList(),
-      error: (error, stack) => _ErrorState(
+      loading: () => const KirenzSkeletonList(itemCount: 6, itemHeight: 82),
+      error: (error, stack) => KirenzStateView(
+        icon: Icons.cloud_off_outlined,
+        title: 'Could not load friends',
         message: error.toString(),
-        onRetry: () => ref.invalidate(friendsProvider(null)),
+        actionLabel: 'Retry',
+        isError: true,
+        onAction: () => ref.invalidate(friendsProvider(null)),
       ),
       data: (items) => items.isEmpty
-          ? const _EmptyState(
+          ? const KirenzStateView(
               icon: Icons.people_outline,
               title: 'Your friend list is empty',
             )
@@ -461,15 +483,7 @@ class _PersonCard extends StatelessWidget {
           padding: const EdgeInsets.all(14),
           child: Row(
             children: [
-              CircleAvatar(
-                radius: 25,
-                backgroundImage: avatarUrl?.isNotEmpty == true
-                    ? CachedNetworkImageProvider(avatarUrl!)
-                    : null,
-                child: avatarUrl?.isNotEmpty == true
-                    ? null
-                    : Text(_initials(name)),
-              ),
+              KirenzUserAvatar(name: name, imageUrl: avatarUrl, radius: 25),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -509,69 +523,6 @@ class _SectionTitle extends StatelessWidget {
       style: Theme.of(
         context,
       ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
-    ),
-  );
-}
-
-class _LoadingList extends StatelessWidget {
-  const _LoadingList();
-  @override
-  Widget build(BuildContext context) => ListView.separated(
-    padding: const EdgeInsets.all(16),
-    itemCount: 6,
-    separatorBuilder: (_, _) => const SizedBox(height: 12),
-    itemBuilder: (_, _) => Container(
-      height: 82,
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(24),
-      ),
-    ),
-  );
-}
-
-class _EmptyState extends StatelessWidget {
-  const _EmptyState({required this.icon, required this.title});
-  final IconData icon;
-  final String title;
-  @override
-  Widget build(BuildContext context) => Center(
-    child: Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 46),
-          const SizedBox(height: 12),
-          Text(title, textAlign: TextAlign.center),
-        ],
-      ),
-    ),
-  );
-}
-
-class _ErrorState extends StatelessWidget {
-  const _ErrorState({required this.message, required this.onRetry});
-  final String message;
-  final VoidCallback onRetry;
-  @override
-  Widget build(BuildContext context) => Center(
-    child: Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            Icons.cloud_off_outlined,
-            size: 46,
-            color: Theme.of(context).colorScheme.error,
-          ),
-          const SizedBox(height: 12),
-          Text(message, textAlign: TextAlign.center),
-          const SizedBox(height: 16),
-          FilledButton(onPressed: onRetry, child: const Text('Retry')),
-        ],
-      ),
     ),
   );
 }
@@ -632,11 +583,3 @@ Future<void> _confirmRemove(
   }
 }
 
-String _initials(String value) {
-  final words = value.trim().split(RegExp(r'\s+'));
-  return words
-      .where((word) => word.isNotEmpty)
-      .take(2)
-      .map((word) => word[0].toUpperCase())
-      .join();
-}

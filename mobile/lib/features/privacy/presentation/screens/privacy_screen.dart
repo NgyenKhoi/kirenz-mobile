@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../shared/widgets/state_views.dart';
 import '../../domain/entities/privacy_settings.dart';
 import '../controllers/privacy_controller.dart';
 
@@ -72,9 +73,13 @@ class _PrivacyScreenState extends ConsumerState<PrivacyScreen> {
     if (draft == null) {
       return state.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, stack) => _PrivacyError(
+        error: (error, stack) => KirenzStateView(
+          icon: Icons.shield_outlined,
+          title: 'Could not load privacy settings',
           message: error.toString(),
-          onRetry: () => ref.invalidate(currentPrivacyProvider),
+          actionLabel: 'Retry',
+          isError: true,
+          onAction: () => ref.invalidate(currentPrivacyProvider),
         ),
         data: (_) => const SizedBox.shrink(),
       );
@@ -83,18 +88,10 @@ class _PrivacyScreenState extends ConsumerState<PrivacyScreen> {
       padding: const EdgeInsets.all(16),
       children: [
         if (state.hasError) ...[
-          Material(
-            color: Theme.of(context).colorScheme.errorContainer,
-            borderRadius: BorderRadius.circular(16),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Text(
-                state.error.toString(),
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.onErrorContainer,
-                ),
-              ),
-            ),
+          KirenzInlineNotice(
+            icon: Icons.sync_problem_outlined,
+            message: state.error.toString(),
+            isError: true,
           ),
           const SizedBox(height: 16),
         ],
@@ -239,33 +236,6 @@ class _PrivacyScreenState extends ConsumerState<PrivacyScreen> {
         ) ??
         false;
   }
-}
-
-class _PrivacyError extends StatelessWidget {
-  const _PrivacyError({required this.message, required this.onRetry});
-  final String message;
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) => Center(
-    child: Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            Icons.shield_outlined,
-            size: 48,
-            color: Theme.of(context).colorScheme.error,
-          ),
-          const SizedBox(height: 12),
-          Text(message, textAlign: TextAlign.center),
-          const SizedBox(height: 16),
-          FilledButton(onPressed: onRetry, child: const Text('Retry')),
-        ],
-      ),
-    ),
-  );
 }
 
 String _visibilityLabel(PrivacyVisibility value) => switch (value) {
